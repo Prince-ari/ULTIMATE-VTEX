@@ -1,0 +1,12 @@
+node_modules
+.next
+dist
+.tools
+*.tsbuildinfo
+.env
+.env.local
+.env.hostinger
+.env.*.local
+*.log
+.DS_Store
+.project-config.json

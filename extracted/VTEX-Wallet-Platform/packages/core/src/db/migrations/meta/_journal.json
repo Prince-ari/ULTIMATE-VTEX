@@ -1,0 +1,97 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1784005471429,
+      "tag": "0000_goofy_cargill",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1784005471999,
+      "tag": "0001_users_fulltext_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1784256703770,
+      "tag": "0002_bouncy_luminals",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1784372371258,
+      "tag": "0003_condemned_malcolm_colcord",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1784380000000,
+      "tag": "0004_extract_documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1784381000000,
+      "tag": "0005_seed_core_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1786713600000,
+      "tag": "0006_media_object_documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1787847624207,
+      "tag": "0007_overconfident_ironclad",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1790349844622,
+      "tag": "0008_admin_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1790355006409,
+      "tag": "0009_card_vault",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1790366895693,
+      "tag": "0010_bank_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1790385798294,
+      "tag": "0011_manager_assignments",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1790387320517,
+      "tag": "0012_document_deliveries",
+      "breakpoints": true
+    }
+  ]
+}

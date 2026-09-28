@@ -1,0 +1,21 @@
+/* Only active while #view-accueil is active. Other Wallet screens remain untouched. */
+body.aurora-home-active { background: var(--ink-0, #0A0908) !important; }
+body.aurora-home-active .phone { max-width: none !important; width: 100% !important; height: 100vh !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; overflow: auto !important; }
+body.aurora-home-active .vtx-sidebar,
+body.aurora-home-active .tabbar { display: none !important; }
+body.aurora-home-active .view { left: 0 !important; width: 100% !important; padding: 0 !important; overflow: visible !important; }
+body.aurora-home-active #view-accueil { position: relative !important; min-height: 100vh !important; opacity: 1 !important; pointer-events: auto !important; }
+body.aurora-home-active #view-accueil .aurora,
+body.aurora-home-active #view-accueil .grain { position: fixed !important; }
+body.aurora-home-active #view-accueil .shell { max-width: 1240px !important; margin: 0 auto !important; }
+body.aurora-home-active #view-accueil .topbar { position: sticky !important; }
+body.aurora-home-active #view-accueil .wallet-service-state { position: fixed !important; z-index: 100 !important; left: 50% !important; bottom: 24px !important; transform: translateX(-50%) !important; }
+body.aurora-home-active #view-accueil .toast { z-index: 120 !important; }
+body.aurora-home-active #view-accueil .reveal { animation-play-state: running !important; }
+/* Évite le flash du shell historique limité à 520 px avant l’ajout de la
+   classe body par le contrôleur Aurora. Chrome/Edge supportent :has(). */
+body:has(#view-accueil.active) .phone { max-width:none !important; width:100% !important; height:100dvh !important; border-radius:0 !important; background:transparent !important; box-shadow:none !important; overflow:auto !important; }
+body:has(#view-accueil.active) #view-accueil { position:relative !important; min-height:100vh !important; }
+@media (max-width: 899px) {
+  body.aurora-home-active #view-accueil .shell { padding-left: 18px !important; padding-right: 18px !important; }
+}

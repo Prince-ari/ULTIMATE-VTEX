@@ -1,0 +1,47 @@
+{
+  "name": "@vtex/core",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json && node -e \"require('fs').writeFileSync('dist/package.json', JSON.stringify({type:'commonjs'}))\"",
+    "prepare": "npm run build",
+    "start": "node dist/api/server.js",
+    "test": "vitest run",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:bootstrap-admin": "tsx src/db/bootstrap-admin.ts",
+    "api:dev": "tsx src/api/server.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1109.0",
+    "@simplewebauthn/server": "^13.3.2",
+    "@trpc/server": "^11.0.0-rc.679",
+    "@vtex/money": "workspace:*",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.36.4",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.11.5",
+    "qrcode": "^1.5.4",
+    "resend": "^4.0.1",
+    "stripe": "^22.6.2",
+    "superjson": "^2.2.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@trpc/client": "^11.0.0-rc.679",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.18.9",
+    "@types/qrcode": "^1.5.6",
+    "drizzle-kit": "^0.28.1",
+    "jimp": "^1.6.1",
+    "jsqr": "^1.4.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  }
+}

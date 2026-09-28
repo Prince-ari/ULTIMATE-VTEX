@@ -1,0 +1,145 @@
+/* ══════════════════════════════════════════════════════════════════
+   LEGDAY-TOKENS.css — Design DNA VTEX, valeurs copiables directement
+   Extrait de /home/claude/vtex/apps/wallet/index.html — voir LEGDAY.md
+   pour la documentation complète de chaque token.
+   ══════════════════════════════════════════════════════════════════ */
+
+:root{
+  /* ─── Typographie ─── */
+  --legday-font-display: 'Inter', system-ui, sans-serif;
+  --legday-font-mono:    'JetBrains Mono', monospace;
+
+  /* ─── Fond & surfaces ─── */
+  --legday-color-background: #100E0D;
+  --legday-color-surface-1:  #1a1817;
+  --legday-color-surface-2:  #24211f;
+  --legday-color-surface-3:  #2a2724;
+  --legday-color-surface-4:  #332f2b;
+  --legday-color-platinum:   #DCDAD0;
+
+  /* ─── Texte ─── */
+  --legday-text-primary:   #f5f7fc;
+  --legday-text-secondary: #a8afd0;
+  --legday-text-tertiary:  #6b7396;
+  --legday-text-on-hi-1:   #0a0d1e;   /* sur fond platinum/clair */
+  --legday-text-on-hi-2:   #4d5378;
+  --legday-text-on-hi-3:   #6b7396;
+
+  /* ─── Brand & sémantique ─── */
+  --legday-color-primary:  #8ea9ff;   /* indigo signature */
+  --legday-color-positive: #5FB03E;   /* vert VTEX (lime) */
+  --legday-color-warm:     #E85820;   /* orange chaud */
+  --legday-color-gold:     #e6b34e;   /* or authentique */
+  --legday-color-danger:   #ef5a67;
+
+  /* ─── Tint system (icônes de TRANSACTION uniquement, jamais section) ─── */
+  --legday-tint-primary:  rgba(142,169,255,.16);
+  --legday-tint-positive: rgba(74,222,128,.14);
+  --legday-tint-warm:     rgba(255,107,61,.16);
+  --legday-tint-gold:     rgba(230,179,78,.15);
+  --legday-tint-danger:   rgba(239,90,103,.14);
+
+  /* ─── Radius — grille stricte à 4 valeurs + exception hero ─── */
+  --legday-radius-pill: 999px;
+  --legday-radius-sm:   14px;
+  --legday-radius-md:   20px;
+  --legday-radius-lg:   32px;
+  --legday-radius-hero: 44px;   /* exception : têtes d'affiche platinum */
+
+  /* ─── Spacing — grille stricte ─── */
+  --legday-space-1: 4px;
+  --legday-space-2: 8px;
+  --legday-space-3: 12px;
+  --legday-space-4: 16px;
+  --legday-space-5: 20px;
+  --legday-space-6: 24px;
+  --legday-space-8: 32px;
+
+  /* ─── Socles d'icône ─── */
+  --legday-socle-xs: 28px;  --legday-icon-xs: 14px;
+  --legday-socle-sm: 32px;  --legday-icon-sm: 18px;
+  --legday-socle-md: 44px;  --legday-icon-md: 24px;
+  --legday-socle-lg: 56px;  --legday-icon-lg: 30px;
+
+  /* ─── Ombres — 2 formules fixes, ne pas en créer d'autres ─── */
+  --legday-shadow-card:
+    0 10px 28px -10px rgba(0,0,0,.55),
+    inset 0 1px 0 rgba(255,255,255,.16);
+  --legday-shadow-card-on-light:
+    0 10px 28px -10px rgba(0,0,0,.45),
+    inset 0 1px 0 rgba(255,255,255,.3);
+  --legday-shadow-socle:
+    inset 0 1px 0 rgba(255,255,255,.4),
+    inset 0 -2px 4px rgba(0,0,0,.12),
+    0 3px 8px -2px rgba(0,0,0,.28);
+  --legday-shadow-socle-accent:
+    inset 0 1px 0 rgba(255,255,255,.4),
+    0 0 0 6px rgba(90,107,216,.16),
+    0 6px 16px -6px rgba(90,107,216,.6);
+
+  /* ─── Gradient — un seul angle, 158deg, toujours 3 stops 0/55/100% ─── */
+  --legday-gradient-platinum:
+    linear-gradient(158deg, #E5E3DA 0%, #DCDAD0 55%, #CFCCC0 100%);
+  --legday-gradient-neutral-inactive:
+    linear-gradient(158deg, #2E3140 0%, #24262F 55%, #1C1E25 100%);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   PALETTE KALÉIDOSCOPE — 12 teintes officielles, 3 familles.
+   Formule de gradient pour CHAQUE teinte de section :
+   linear-gradient(158deg, [base+15%lum] 0%, [base] 55%, [base-15%lum] 100%)
+   ══════════════════════════════════════════════════════════════════ */
+
+:root{
+  /* Famille VERTS */
+  --legday-kaleido-green-forest: #3E8B54;  --legday-kaleido-green-forest-socle: #97CE5E;
+  --legday-kaleido-green:        #4E9B4E;
+  --legday-kaleido-green-light:  #79BC5F;
+  --legday-kaleido-green-lime:   #97CE5E;
+
+  /* Famille BLEUS / TEALS */
+  --legday-kaleido-teal:         #62B8B0;  --legday-kaleido-teal-socle: #BFE3A8;
+  --legday-kaleido-blue-light:   #4E93D9;
+  --legday-kaleido-blue-medium:  #3D74B8;
+  --legday-kaleido-blue-deep:    #2A5B84;  --legday-kaleido-blue-deep-socle: #5FA8D8;
+
+  /* Famille ROUGES / CHAUDS */
+  --legday-kaleido-brick:        #8E3B36;  --legday-kaleido-brick-socle: #E5903F;
+  --legday-kaleido-red:          #D0453C;
+  --legday-kaleido-orange:       #E5903F;
+  --legday-kaleido-yellow:       #F0CF52;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   RÉFÉRENCE GRADIENTS PAR SECTION — les 4 paires validées en prod
+   ══════════════════════════════════════════════════════════════════ */
+
+.legday-card-blue-deep{
+  background: linear-gradient(158deg, #356E9C 0%, #2A5B84 55%, #22496A 100%);
+  box-shadow: var(--legday-shadow-card);
+}
+.legday-card-blue-deep .legday-socle{ background: var(--legday-kaleido-blue-deep-socle); }
+
+.legday-card-green-forest{
+  background: linear-gradient(158deg, #4C9D63 0%, #3E8B54 55%, #327044 100%);
+  box-shadow: var(--legday-shadow-card);
+}
+.legday-card-green-forest .legday-socle{ background: var(--legday-kaleido-green-forest-socle); }
+
+.legday-card-brick{
+  background: linear-gradient(158deg, #A04841 0%, #8E3B36 55%, #73302C 100%);
+  box-shadow: var(--legday-shadow-card);
+}
+.legday-card-brick .legday-socle{ background: var(--legday-kaleido-brick-socle); }
+
+.legday-card-teal{
+  background: linear-gradient(158deg, #72C6BE 0%, #62B8B0 55%, #4E9891 100%);
+  box-shadow: var(--legday-shadow-card);
+}
+.legday-card-teal .legday-socle{ background: var(--legday-kaleido-teal-socle); }
+
+.legday-socle{
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--legday-shadow-socle);
+}

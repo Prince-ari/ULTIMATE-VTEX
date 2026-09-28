@@ -1,0 +1,215 @@
+# Project TODO
+
+- [x] Importer et normaliser le monorepo VTEX Core, le Wallet v4 et les configurations de développement dans le projet cible.
+- [x] Préserver les domaines transversaux Core : authentification OTP à six chiffres, sessions JWT httpOnly, RBAC, notifications, support, documents, paramètres, leads et journal d’audit.
+- [x] Définir le package métier Wallet distinct du Core, ses invariants et ses frontières de dépendances.
+- [x] Ajouter les tables `wallet_accounts`, `cards`, `transactions`, `beneficiaries`, `savings_goals`, lignes de ledger et clés d’idempotence avec montants `BIGINT` en centimes.
+- [x] Générer et versionner les migrations Drizzle/MySQL du Core et du domaine Wallet sans migration destructive.
+- [x] Implémenter les services transactionnels Wallet avec verrouillage, idempotence, contrôles de solde, limites, devise et journalisation.
+- [x] Exposer les procédures tRPC Wallet : consultation des comptes, IBAN, devises et solde.
+- [x] Exposer les procédures tRPC Cards : liste, masquage, gel/dégel, limites et toggles contrôlés côté serveur.
+- [x] Exposer les procédures tRPC Transactions : historique paginé, virement interne, ordre externe, validation administrative et partage de fonds.
+- [x] Exposer les procédures tRPC Beneficiaries : création, lecture, mise à jour, suppression et validation IBAN côté serveur.
+- [x] Finaliser l’édition Wallet v4 des Savings Goals pour couvrir nom, montant cible et échéance, en plus de la création, alimentation et clôture atomiques.
+- [x] Mettre en place les notifications métier et le journal d’audit pour les opérations Wallet sensibles.
+- [x] Remplacer les données simulées de VTEX final v4 (`CARDS`, `TRANSACTIONS`, `BENEFICIAIRES`) par des modèles récupérés par API.
+- [x] Remplacer les mutations financières du navigateur par des appels tRPC avec états de chargement, erreurs et rafraîchissement serveur.
+- [x] Adapter le flux de connexion v4 au contrat OTP six chiffres et au cookie de session httpOnly.
+- [x] Préserver le rendu Three.js par un adaptateur de modèle de carte non sensible.
+- [x] Construire le Dashboard d’administration : utilisateurs, comptes, cartes, transactions, virements en attente, KPIs, leads, support, journal et paramètres.
+- [x] Appliquer les rôles `admin`, `agent` et `user` dans les contrats API et les vues Dashboard.
+- [x] Ajouter le rate limiting, la validation IBAN, les plafonds de carte, les contrôles d’autorisation et la prévention des rejouements.
+- [x] Étendre les tests Vitest Wallet aux services transactionnels, à l’idempotence monétaire et aux contrôles RBAC, en complément de la recette API/MariaDB.
+- [x] Vérifier le typecheck, le build, les tests et l’interface responsive du Wallet et du Dashboard.
+- [x] Préparer Dockerfiles, Compose MySQL 8/API/Dashboard/Wallet, Nginx, démarrage des migrations et exemples de variables Hostinger.
+- [x] Rédiger la documentation d’exploitation, de sécurité et de déploiement VPS Hostinger.
+- [x] Attester par inspection et documentation la séquence Docker automatique migrations Core, migrations Wallet et bootstrap administrateur au premier démarrage MySQL Hostinger.
+- [x] Vérifier et corriger les scripts, workspaces et chemins du monorepo importé dans `/home/ubuntu/vtex-wallet-platform`.
+- [x] Installer les dépendances du monorepo cible puis exécuter `pnpm typecheck` et `pnpm build` pour valider la normalisation après import.
+- [x] Nettoyer ou documenter les artefacts temporaires de migration (`.template-backup`) et confirmer la configuration de développement active.
+- [x] Brancher le partage v4 sur des mutations serveur, sans aucun débit local ni destinataire simulé.
+- [x] Finaliser le traitement serveur du virement classique immédiat et désactiver explicitement les options de planification non implémentées.
+- [x] Neutraliser l’écran de transfert entre cartes : les cartes d’un même Wallet partagent le même compte de règlement et aucun déplacement local n’est autorisé.
+- [x] Ajouter une vue Dashboard de toutes les transactions Wallet et les actions administratives de carte réellement opérables.
+- [x] Protéger explicitement la vue Dashboard Wallet selon `admin` et `agent`, et masquer les actions réservées à `admin`.
+- [x] Documenter et exposer le flux d’autorisation carte comme opération de paiement serveur (plafonds, toggles, ledger) avec une limitation explicite du navigateur.
+- [x] Exécuter les tests d’intégration Core/Wallet contre une base MariaDB compatible MySQL dont les migrations sont à jour.
+- [x] Configurer un compte administrateur initial via des variables d’environnement et un hash de mot de passe, sans secret en clair dans le dépôt.
+- [x] Vérifier la connexion OTP/sessions sur le Wallet et l’accès administrateur au Dashboard avec ce compte.
+- [x] Capturer les interfaces Wallet et Dashboard après authentification pour la recette utilisateur.
+- [x] Remplacer l’identité Dashboard statique par le profil administrateur renvoyé par la session tRPC.
+- [x] Auditer le branding mobile VTEX et les structures de vues afin de définir le langage visuel desktop.
+- [x] Construire un shell Wallet desktop natif avec navigation, zone de portefeuille, actions et identité VTEX cohérentes.
+- [x] Vérifier visuellement et capturer les vues desktop déclenchées par action : `confirmation` et `email-compose`, puis ajuster leur mise en page si nécessaire.
+- [x] Capturer et documenter les vues desktop restantes : détails bénéficiaire, cartes, partage de fonds, virement classique et flux secondaires accessibles.
+- [x] Documenter écran par écran la revue desktop complète et produire les captures de recette demandées.
+- [x] Valider le serveur statique Wallet avec les deux conventions de port : `PORT`, puis `WALLET_PORT`, pour les prévisualisations et le déploiement Docker.
+- [x] Inventorier et capturer chaque écran accessible du Wallet mobile dans la prévisualisation actuelle.
+- [x] Inventorier et capturer chaque écran accessible du Dashboard dans la prévisualisation actuelle.
+- [x] Assembler un pack téléchargeable de captures Wallet mobile et Dashboard, avec une nomenclature lisible.
+- [x] Générer et vérifier l’archive ZIP téléchargeable du pack de captures Wallet mobile et Dashboard.
+- [x] Documenter une direction artistique fintech desktop de référence pour le Wallet et le Dashboard à partir de références publiques premium.
+- [x] Préparer et intégrer le logo VTEX fourni aux emplacements de marque du Dashboard et du Wallet desktop.
+- [x] Rehausser les surfaces, la grille, les interactions et la hiérarchie du Wallet desktop selon la direction retenue.
+- [x] Rehausser les surfaces, la grille, les interactions et la hiérarchie du Dashboard selon la direction retenue.
+- [x] Vérifier visuellement les refontes et remettre les captures actualisées du Wallet desktop et du Dashboard.
+- [x] Étendre la direction AAA aux vues desktop principales du Wallet au-delà de l’accueil et des cartes, puis vérifier leurs états clés.
+- [x] Assembler et remettre un pack de visuels actualisés couvrant les vues desktop Wallet et Dashboard refondues.
+- [x] Auditer chaque capacité Wallet et identifier les données, états et commandes absents du Dashboard.
+- [x] Compléter l’audit par une matrice exhaustive procédure-par-procédure, incluant les flux volontairement exclus du Dashboard.
+- [x] Documenter les contrôles administratifs sécurisés requis pour piloter comptes, devise, cartes, bénéficiaires, limites, opérations et épargne.
+- [x] Étendre les procédures tRPC et les services Wallet nécessaires au pilotage administratif, avec RBAC, validation et audit.
+- [x] Connecter le Dashboard aux commandes Wallet exhaustives, sans aucun contrôle local fictif.
+- [x] Remplacer l’iconographie et les accents bariolés du Dashboard et du Wallet desktop par un système monochrome professionnel, sans modifier le Wallet mobile.
+- [x] Vérifier les tests, les autorisations, les captures desktop et l’absence de régression du Wallet mobile.
+- [x] Ajouter l’édition complète des bénéficiaires dans le Dashboard et expliciter les opérations volontairement exclues.
+- [x] Exposer les métadonnées administrables restantes des comptes et des cartes dans le détail Wallet, puis en vérifier les commandes réelles.
+- [x] Unifier strictement les icônes fonctionnelles desktop sur une seule famille professionnelle et éliminer les SVG décoratifs résiduels.
+- [x] Produire les captures desktop finales de la console Wallet et du Wallet monochrome, avec une nouvelle vérification mobile.
+- [x] Exécuter en recette une commande réelle de compte et une commande réelle de carte depuis le Dashboard, puis consigner le résultat.
+- [x] Compléter l’inventaire des métadonnées compte/carte et expliciter dans l’UI les données volontairement exclues.
+- [x] Auditer chaque vue desktop pour neutraliser les SVG décoratifs résiduels et confirmer la famille d’icônes unique dans les captures.
+- [x] Réaliser une revue exhaustive des flux, contrastes, logos, icônes, surcharges et culs-de-sac du Wallet desktop et du Dashboard.
+- [x] Ajouter la recherche de titulaire au Dashboard pour ouvrir un compte sans saisir d’identifiant interne.
+- [x] Ajouter une vue de rapprochement ledger et des alertes Dashboard pour plafonds et virements en attente.
+- [x] Corriger les états de chargement, erreurs, images, navigation et contrastes desktop sans modifier la version Wallet mobile.
+- [x] Créer sur l’accueil desktop un carrousel de cartes 3D fluide, visible, contrôlable par souris et clavier, avec mouvement réduit respecté.
+- [x] Ajouter des tests et une recette visuelle d’accessibilité : navigation clavier, focus, contraste, interactions souris, cartes 3D et isolation mobile.
+- [x] Assembler les captures de finition et documenter les corrections de la revue desktop.
+- [x] Valider le Wallet desktop sur une session réellement hydratée, avec cartes 3D visibles et commandes souris/clavier vérifiées.
+- [x] Corriger le routage API de la prévisualisation Wallet locale afin d’éliminer l’erreur de requête lors de la connexion de recette.
+- [x] Ajouter une preuve explicite de focus, navigation clavier, mouvement réduit, souris et isolation mobile après les surcharges desktop.
+- [x] Régénérer une archive de captures de finition reflétant les dernières corrections Wallet desktop et Dashboard.
+- [x] Capturer et vérifier visuellement l’accueil Wallet desktop hydraté, avec carte 3D rendue et interaction suivante/précédente constatée.
+- [x] Ajouter une recette explicite de mouvement réduit pour le carrousel et ses contrôles, puis intégrer ces preuves à l’archive finale.
+- [x] Produire une preuve avant/après nominative du carrousel 3D avec assertion de changement d’état après la commande suivante.
+- [x] Soumettre la carte 3D actuelle à validation visuelle et, après accord, aligner le carrousel desktop sur la référence mobile retenue sans altérer le Wallet mobile.
+- [x] Restaurer et raffiner le fond desktop split avec son dégradé, atténuer les icônes blanches et remplacer la signature de profil générique, sans altérer le Wallet mobile.
+- [x] Supprimer toute identité administrative du Wallet utilisateur et présenter uniquement le profil client authentifié.
+- [x] Recomposer l’accueil Wallet desktop pour éliminer chevauchements, décalages de titres et tensions d’espacement.
+- [x] Auditer et corriger les alignements, densités et collisions du Dashboard et du Wallet mobile écran par écran.
+- [x] Produire une validation visuelle multi-breakpoints de la finition produit et archiver les preuves associées.
+- [x] Afficher dans le Wallet l’identité authentifiée réelle, sans mention de rôle administratif et avec un repli générique uniquement en absence de profil exploitable.
+- [x] Étendre l’audit de finition aux écrans clés du Dashboard et du Wallet mobile, au-delà de l’accueil et de la console Wallet.
+- [x] Ajouter des captures et recettes multi-breakpoints dédiées aux alignements Dashboard et Wallet mobile dans l’archive finale.
+- [x] Ajouter une photo de profil configurable par URL HTTPS, persistée côté serveur et affichée dans le Wallet/Dashboard sans exposer les octets en base.
+- [x] Étendre le Dashboard avec des contrôles Wallet supplémentaires, auditables et réellement exécutés côté serveur.
+- [x] Enrichir le fond split du Wallet desktop en continuité de la direction mobile, sans régression mobile.
+- [x] Fluidifier les transitions du carrousel 3D pour la souris, le clavier et le mouvement réduit, puis produire des preuves de recette.
+- [x] Préparer l’import direct de fichier pour la photo de profil lorsqu’un stockage objet compatible Hostinger est configuré.
+- [x] Ajouter une recette clavier post-réglage du carrousel 3D pour ←, →, Home et End, avec preuve des états actifs et ARIA.
+- [x] Préparer un stockage objet S3 compatible directement déployable sur le VPS Hostinger pour les avatars, PDF et justificatifs médias.
+- [x] Permettre à l’administrateur de téléverser, attribuer, consulter et retirer des documents PDF utilisateurs depuis le Dashboard.
+- [x] Permettre aux utilisateurs Wallet mobile et desktop de remettre une capture/justificatif de virement avec contexte transactionnel côté serveur.
+- [x] Exposer au Dashboard tous les médias, téléchargements, remises et opérations client avec journal d’audit et autorisations strictes.
+- [x] Ajouter des notifications temps réel persistantes pour les nouvelles remises, documents attribués et opérations Wallet associées.
+- [x] Valider les flux média, PDF, téléchargements, remises et notifications dans des recettes serveur et navigateur.
+- [x] Auditer écran par écran le Wallet desktop, le Wallet mobile et le Dashboard pour détecter les désalignements, collisions, contrastes, placeholders et culs-de-sac.
+- [x] Corriger dans les deux versions Wallet le rendu visuel de l’IBAN dans le parcours Recevoir, notamment toute teinte bleue résiduelle.
+- [x] Vérifier les branchements API, les états vides, les chargements et les commandes des parcours Wallet/Dashboard accessibles sans donnée simulée.
+- [x] Nettoyer le monorepo et vérifier la préparation Docker/Compose/Nginx/variables pour une remise Hostinger propre et déployable.
+- [x] Passer en revue et consigner toutes les vues Wallet desktop/mobile et les principaux écrans Dashboard, y compris leurs états chargement, vide et erreur accessibles.
+- [x] Brancher ou neutraliser les libellés Profil statiques non prouvés par le serveur afin d’éliminer tout état potentiellement simulé.
+- [x] Compléter la recette navigateur des parcours Wallet et Dashboard restants, notamment historique, coordonnées bancaires, notifications, bénéficiaires, support et erreurs de formulaire.
+- [x] Étendre la purge locale aux comptes de test dont les emails se terminent par `@test.local`, puis recontrôler les tableaux Dashboard nettoyés.
+- [x] Supprimer des Paramètres Dashboard les références de sprint et le placeholder de logo qui ne correspondent plus au branding VTEX intégré.
+- [x] Neutraliser dans Banque et Recevoir les coordonnées, dates et métadonnées qui ne proviennent pas du compte serveur, afin d’éliminer toute valeur statique non prouvée.
+- [x] Vérifier et consigner Analytics, Journal système et Leads Dashboard avec leurs états chargement, vide et erreur réellement accessibles.
+- [x] Compléter la recette navigateur Historique Wallet avec preuve explicite de l’état rendu et du comportement de recherche sans résultat.
+- [x] Purger les leads locaux de recette utilisant `@test.local`, puis revérifier Leads et Analytics sans artefact de test.
+- [x] Retirer la dernière référence de sprint du Journal système tout en préservant sa traçabilité en lecture seule.
+- [x] Compléter la recette Leads et Journal système avec preuves explicites de chargement et, si déclenchable sans donnée persistante, d’erreur.
+- [x] Consigner séparément les observations chargement, vide et erreur d’Analytics, Leads et Journal avant la clôture de revue Dashboard.
+- [x] Remplacer le chargement bloqué de la garde Dashboard en cas d’erreur réseau par un état explicite avec reprise, sans invalider la session locale.
+- [x] Consigner séparément dans la revue finale les états chargement, vide et erreur d’Analytics, Leads et Journal.
+- [x] Archiver dans le dossier de preuves les sorties vérifiables des états chargement et erreur de Leads et Journal, puis les référencer dans la revue.
+- [x] Distinguer dans la garde Dashboard une réponse d’authentification expirée d’une erreur réseau, avec redirection login uniquement pour la session invalide.
+- [x] Construire une archive ZIP propre du monorepo VTEX, excluant dépendances, caches, journaux, preuves locales et variables d’environnement, prête pour le VPS Hostinger.
+- [x] Vérifier le contenu, l’intégrité et les instructions de l’archive ZIP Hostinger avant remise au téléchargement.
+- [x] Vérifier les identifiants administrateur de recette, le mot de passe et le flux OTP Dashboard/Wallet avant communication à l’utilisateur.
+- [x] Diagnostiquer le blocage de déploiement Hostinger lié aux variables d’environnement Docker et fournir une relance non destructive.
+- [x] Renforcer le précontrôle Hostinger afin de détecter les variables vides ou d’exemple avant Docker Compose et corriger la syntaxe d’`EMAIL_FROM` dans le modèle `.env`.
+- [x] Rétablir les services de recette Wallet, Dashboard et API, puis fournir des liens de prévisualisation contrôlés après validation des accès.
+- [x] Afficher dans le Wallet de développement le code OTP de recette généré par le serveur, puis confirmer son absence en production.
+- [x] Reporter à la demande utilisateur la recette partagée avec compte client distinct, OTP Resend par e-mail, notification et mise à jour de solde pilotées depuis le Dashboard.
+- [x] Reporter à la demande utilisateur l’accès de démonstration stable et sécurisé avant partage à un tiers ; les liens de prévisualisation restent temporaires.
+- [x] Rétablir l’API de recette avec un secret JWT temporaire robuste après le redémarrage, puis reprendre la validation OTP Resend.
+- [x] Préserver le flux OTP de développement lorsque Resend est mal configuré, sans masquer ni contourner l’échec d’envoi en production.
+- [x] Aligner le schéma MariaDB de recette sur le contrat Core utilisateur avant la validation visuelle authentifiée du Wallet.
+- [x] Recomposer le Dashboard desktop autour d’un rail lisible, d’un en-tête concis, d’une bande KPI et de grilles analytiques responsive inspirées de la référence fournie.
+- [x] Recomposer le Wallet desktop autour d’une surface contenue, d’une hiérarchie éditoriale asymétrique, d’un objet carte affirmé et de gabarits qui respirent, sans modifier le Wallet mobile.
+- [x] Valider les nouvelles compositions Desktop à plusieurs largeurs et confirmer l’absence de régression des parcours, du clavier et du mobile.
+- [x] Acter le report demandé de Resend et de la démonstration partagée persistante, en conservant l’OTP visible uniquement en recette locale.
+- [x] Retirer du dépôt livrable et du ZIP Hostinger tous les fichiers `.env`, `.env.*` et modèles d’environnement afin d’éviter toute détection ou génération conflictuelle par Hostinger.
+- [x] Adapter le script et le guide Hostinger afin que la configuration soit lue exclusivement depuis les variables définies dans le panneau Hostinger ou dans un fichier externe créé par l’utilisateur hors de l’archive.
+- [x] Recenser tous les écrans Wallet et Dashboard effectivement accessibles dans cette copie, y compris leurs routes et états authentifiés disponibles.
+- [x] Capturer les écrans Wallet et Dashboard recensés aux formats mobile et desktop, sans exposer de données sensibles.
+- [x] Organiser et remettre une archive ZIP téléchargeable avec une nomenclature explicite par produit, écran et format.
+- [x] Rétablir le démarrage de la prévisualisation bloqué par l’approbation des scripts de dépendances, afin de permettre les captures.
+- [x] Mettre en place un mode de démonstration local, sans variables ni validation OTP, strictement désactivé hors développement et sans exposition de données réelles.
+- [x] Vérifier que le mode de démonstration donne accès aux écrans Wallet et Dashboard nécessaires aux captures, sans modifier le flux de production.
+- [x] Corriger le déclenchement du mode aperçu Dashboard afin qu’il soit explicite et n’altère pas les contrôles d’authentification habituels ni leurs tests.
+- [x] Établir un référentiel d’audit exhaustif couvrant écrans, composants, actions, états, rôles, données, règles et dépendances.
+- [x] Cartographier toutes les fonctionnalités et interactions du Wallet mobile et du Wallet desktop, y compris leurs parcours secondaires.
+- [x] Cartographier toutes les fonctionnalités et interactions du Dashboard, incluant les autorisations et les contrôles administratifs.
+- [x] Relier chaque interface aux contrats API, services métier, données persistées, journalisation et impacts inter-produits.
+- [x] Vérifier les parcours, états vides, chargements, erreurs et limites observables nécessaires à la future refonte.
+- [x] Rédiger et remettre la matrice fonctionnelle complète servant de spécification à la refonte visuelle totale.
+- [x] Enregistrer la clé Resend de manière sécurisée sans la reproduire dans le dépôt, les journaux ou la documentation.
+- [x] Définir et valider un expéditeur Resend associé à un domaine vérifié pour les OTP de production.
+- [x] Vérifier par test le branchement Resend et confirmer que l’OTP ne peut jamais être affiché hors développement.
+- [x] Empêcher le Dashboard de dépendre de `devPeekOtp` en production, tout en conservant l’aide de recette en développement.
+- [x] Refuser le démarrage de production si `EMAIL_FROM` n’est pas défini, afin de ne jamais retomber sur un expéditeur Resend de test.
+- [x] Préparer la vidéo Pexels fournie comme actif web optimisé et conforme à son usage dans le Wallet.
+- [x] Remplacer le fond split des écrans Wallet de chargement, connexion et OTP par la vidéo, sur mobile et desktop.
+- [x] Préserver la lisibilité, le contraste, le chargement progressif et le respect de `prefers-reduced-motion` sur ces écrans intermédiaires.
+- [x] Analyser le modèle HTML OTP fourni et identifier les adaptations nécessaires aux clients e-mail.
+- [x] Transformer le modèle en gabarit backend dynamique, avec code OTP unique et contenu de repli copiable.
+- [x] Relier le gabarit Resend au flux de connexion, sans exposer le code dans les journaux ni l’interface de production.
+- [x] Ajouter des tests de rendu, de personnalisation par OTP et de stabilité des instructions de copie.
+- [x] Documenter le protocole de test d’envoi et remettre le modèle transactionnel prêt à valider sur boîte e-mail.
+- [x] Envoyer un e-mail OTP de recette vers l’adresse de test fournie par l’utilisateur, sans consigner le code envoyé.
+- [x] Consigner le statut de livraison et guider la vérification du rendu sur mobile.
+- [x] Définir les critères d’audit design applicables au Wallet, au Dashboard et aux e-mails transactionnels.
+- [x] Auditer visuellement le Wallet mobile, ses écrans d’entrée, ses états et son adaptation responsive.
+- [x] Auditer visuellement le Wallet desktop, son shell, ses vues financières et ses interactions spécifiques.
+- [x] Auditer la hiérarchie, les composants, les données et la navigation de tous les modules Dashboard.
+- [x] Auditer l’identité transversale, les e-mails OTP, les contrastes et la cohérence de marque.
+- [x] Produire une matrice de problèmes, priorités et principes de refonte visuelle totale.
+- [x] Corriger les contrastes P0 et isoler la lecture financière du décor sur le Wallet mobile et desktop.
+- [x] Diagnostiquer et corriger le rendu Wallet desktop qui laisse le fond visible sans les surfaces applicatives dans la capture de recette.
+- [x] Rendre le contrôle biométrique et les commandes critiques du Wallet entièrement sémantiques et accessibles.
+- [x] Clarifier les états OTP de saisie, erreur, expiration, renvoi, verrouillage et succès sans exposer de code sensible.
+- [x] Uniformiser les états de chargement, erreur, vide et reprise du Wallet et du Dashboard, avec continuité de shell et causes distinctes.
+- [x] Ajouter et exécuter les tests unitaires et vérifications visuelles ciblés, puis actualiser l’audit de conception.
+- [x] Établir le registre exhaustif des fonctionnalités, contrats, rôles et invariants Wallet, Dashboard et Core à vérifier.
+- [x] Auditer et exécuter les tests disponibles pour les parcours d’authentification, Wallet, Dashboard, opérations financières, documents et notifications.
+- [x] Diagnostiquer la disponibilité de l’API, les défauts confirmés, les lacunes de tests et les dettes techniques structurelles.
+- [x] Stabiliser le lanceur de prévisualisation afin d’exposer le Dashboard sur son port principal tout en démarrant son API dépendante.
+- [x] Corriger la référence du mot-symbole Dashboard indisponible en prévisualisation en réutilisant l’actif de marque versionné.
+- [x] Mettre à jour le test de contrat du routeur composé afin qu’il couvre explicitement les branches Wallet attendues.
+- [x] Corriger les défauts reproductibles et la dette technique prioritaire sans affaiblir les contrôles de sécurité ni les flux métier.
+- [x] Réexécuter une recette complète, actualiser la documentation d’audit et remettre les limites nécessitant l’environnement de production.
+- [x] Définir l’architecture de mise en ligne sécurisée du Wallet, Dashboard, API, base de données, stockage et domaines.
+- [x] Auditer les artefacts de déploiement, les origines, TLS, variables, migrations et exigences de recette réelle.
+- [x] Préparer les corrections de configuration nécessaires sans placer de secret dans le dépôt ni contourner l’OTP.
+- [x] Configurer explicitement le proxy API du conteneur Wallet afin que les parcours réels ne renvoient pas 502 après déploiement.
+- [x] Corriger le fallback d’URL Dashboard du script de déploiement afin qu’il reprenne le domaine configuré et jamais un domaine d’exemple.
+- [x] Aligner le guide de déploiement racine sur le script réel, qui exige des variables injectées et interdit les fichiers d’environnement dans le dépôt.
+- [x] Harmoniser les commentaires de l’exemple de variables et retirer l’exemple Nginx monodomaine obsolète de la procédure de recette.
+- [x] Ajouter un test de non-régression des liens Wallet/API et des URL Dashboard dans les artefacts de déploiement.
+- [ ] Sauvegarder la configuration prête à publier et remettre la procédure contrôlée de publication et de recette.
+- [x] Adapter l’écran de connexion Dashboard mobile à une disposition split verticale inspirée du layout de référence, sans perte d’accessibilité.
+- [x] Vérifier que la marque VTEX et le libellé Dashboard restent lisibles dans la disposition mobile split.
+- [x] Configurer l’expéditeur Resend fourni via le gestionnaire de secrets sans créer de fichier `.env` ni exposer de valeur sensible.
+- [x] Produire une archive Hostinger sans fichier `.env`, contrôler l’absence de secrets et joindre la procédure de variables à injecter.
+- [x] Retirer le modèle `.env.hostinger.example` des artefacts de livraison et orienter la documentation active vers la liste de variables sans valeurs.
+- [x] Compiler, exécuter les suites de tests et contrôler les vues Dashboard mobile et de déploiement avant livraison.
+- [x] Stabiliser le test de fenêtre du rate limiter qui a échoué de manière non déterministe pendant la recette complète.
+- [x] Exécuter la compilation de production de manière séquentielle afin d’éviter l’arrêt du worker Dashboard sous pression mémoire de prévisualisation.
+- [x] Diagnostiquer et corriger l’échec de chargement du chunk Dashboard `app/(main)/layout.js` signalé dans la prévisualisation.
+- [x] Remplacer tout libellé de marque « Surface opérateur » par « Dashboard » dans les écrans et états Dashboard.
+- [x] Remplacer le dernier libellé historique « Control surface » de la connexion Dashboard par « Dashboard ».
+- [x] Passer le rail Dashboard sur fond blanc en conservant un logo VTEX lisible et des contrôles contrastés.
+- [x] Préparer une checklist de recette réelle couvrant accès, OTP, rôles, Wallet, documents et opérations contrôlées.
+- [x] Éviter la duplication des notifications d’indisponibilité du centre de pilotage lors des rechargements Dashboard.

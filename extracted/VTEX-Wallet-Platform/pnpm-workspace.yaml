@@ -1,0 +1,11 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true
+fetchRetries: 6
+fetchRetryMaxtimeout: 180000
+fetchRetryMintimeout: 20000
+fetchTimeout: 600000
+networkConcurrency: 4

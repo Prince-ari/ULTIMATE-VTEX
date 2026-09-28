@@ -1,0 +1,3 @@
+ALTER TABLE `beneficiaries` ADD `internal_wallet_account_id` bigint;--> statement-breakpoint
+ALTER TABLE `beneficiaries` ADD CONSTRAINT `beneficiaries_internal_wallet_account_id_wallet_accounts_id_fk` FOREIGN KEY (`internal_wallet_account_id`) REFERENCES `wallet_accounts`(`id`) ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX `beneficiaries_internal_wallet_idx` ON `beneficiaries` (`internal_wallet_account_id`);

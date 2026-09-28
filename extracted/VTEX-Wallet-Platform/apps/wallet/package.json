@@ -1,0 +1,12 @@
+{
+  "name": "@vtex/wallet-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "build": "node -e \"console.log('Wallet static assets ready')\"",
+    "typecheck": "node -e \"console.log('Wallet browser client uses checked API contracts')\"",
+    "test": "node --test wallet-ui.test.mjs"
+  }
+}

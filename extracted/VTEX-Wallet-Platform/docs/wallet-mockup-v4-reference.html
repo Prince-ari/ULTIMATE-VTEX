@@ -1,0 +1,1823 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VTEX — Refonte v3 · Three.js embarqué</title>
+<meta name="theme-color" content="#050510">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap">
+<!-- Three.js pour le vrai carrousel 3D VTEX. Fallback CSS 3D si WebGL indispo. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r155/three.min.js"></script>
+<style>
+:root{
+  /* Fond quasi-noir (audit B1) */
+  --bg:            #100E0D;
+  --surface-1:     #1a1817;
+  --surface-2:     #24211f;
+  --surface-hi:    #DCDAD0;
+  --ink-hi:        #0a0d1e;
+
+  /* Accents */
+  --accent-primary:#8ea9ff;
+  --accent-primary-pastel: #8FA3D4;   /* périwinkle muté, mesuré sur ref (D3) */
+  --accent-warm:   #E85820;
+  --accent-positive:#5FB03E;
+  --accent-gold:   #e6b34e;
+  --accent-danger: #ef5a67;
+
+  /* Texte */
+  --text-1: #f5f7fc;
+  --text-2: #a8afd0;
+  --text-3: #6b7396;
+  --text-on-hi-1: #0a0d1e;
+  --text-on-hi-2: #4d5378;
+
+  /* Radius (audit C1: 32 au lieu de 28) */
+  --r-pill: 999px;
+  --r-icon: 50%;
+  --r-sm:   14px;
+  --r-md:   20px;
+  --r-lg:   32px;
+
+  /* Typo (audit A: Inter partout, plus de Bricolage) */
+  --fs-2xs: 10px;
+  --fs-xs:  11.5px;
+  --fs-sm:  13px;
+  --fs-md:  15px;
+  --fs-lg:  18px;
+  --fs-xl:  24px;
+  --fs-2xl: 34px;
+  --fs-3xl: 42px;
+
+  /* Spacing 4px grid */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+
+  /* Socles */
+  --socle-xs: 28px;  --icon-in-xs: 14px;
+  --socle-sm: 32px;  --icon-in-sm: 18px;
+  --socle-md: 44px;  --icon-in-md: 24px;
+  --socle-lg: 56px;  --icon-in-lg: 30px;
+
+  --f-ui:   'Inter', system-ui, sans-serif;
+  --f-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:#080706;
+  color:var(--text-1);
+  font-family:var(--f-ui);
+  font-size:var(--fs-sm);
+  line-height:1.4;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+  display:flex; justify-content:center; align-items:flex-start;
+  padding:32px 16px;
+}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+ul,ol{margin:0;padding:0;list-style:none}
+a{color:inherit;text-decoration:none}
+.mono{font-family:var(--f-mono)}
+
+/* Typo display = Inter 800 très serré (audit A1, A2) */
+.h-display{
+  font-family:var(--f-ui);
+  font-weight:800;
+  letter-spacing:-.03em;
+  line-height:.98;
+}
+
+.app-shell{
+  width:390px; max-width:100%;
+  background:var(--bg);
+  border-radius:44px;
+  padding-top:12px;
+  overflow:hidden; position:relative;
+  box-shadow: 0 40px 100px -30px rgba(0,0,0,.8), 0 0 0 10px #14162b, 0 0 0 11px #2a2e4a;
+  min-height:844px; max-height:calc(100vh - 64px);
+  display:flex; flex-direction:column;
+}
+.app-notch{
+  position:absolute; top:8px; left:50%; transform:translateX(-50%);
+  width:120px; height:26px; background:#000; border-radius:16px; z-index:100;
+}
+.app-viewport{
+  flex:1; overflow-y:auto; overflow-x:hidden;
+  padding: 46px 20px 108px;
+  scroll-behavior:smooth;
+}
+.app-viewport::-webkit-scrollbar{width:0}
+
+.view{display:none; animation: viewIn .28s cubic-bezier(.2,.85,.24,1.05)}
+.view.active{display:block}
+@keyframes viewIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+/* HEADER de vue */
+.app-header{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:var(--sp-6); gap:var(--sp-3);
+}
+.app-header-title{
+  font-family:var(--f-ui); font-weight:800; font-size:var(--fs-lg);
+  letter-spacing:-.02em;
+}
+
+.btn-round{
+  width:44px; height:44px;
+  border-radius:var(--r-icon);
+  /* #7 : fond quasi-invisible + micro bordure inset — la ref a un edge à peine perceptible */
+  background:rgba(255,255,255,.04);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+  display:inline-flex; align-items:center; justify-content:center;
+  color:var(--text-1);
+  font-size:22px;
+  position:relative;
+  transition: background .18s, box-shadow .18s;
+}
+.btn-round:hover{ background:rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1) }
+.btn-round.warm{ color:var(--accent-warm) }    /* audit B4 : bell teintée */
+.btn-round .dot-badge{
+  position:absolute; top:4px; right:4px;   /* #10 : plus proche du bord */
+  width:9px; height:9px; border-radius:var(--r-icon);
+  background:var(--accent-warm);
+  border:2px solid var(--bg);
+}
+
+/* Home greet header */
+.home-header{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:var(--sp-5); gap:var(--sp-3);
+}
+.home-greet{ display:flex; align-items:center; gap:var(--sp-3) }
+.avatar{
+  width:44px; height:44px;
+  border-radius:var(--r-icon);
+  /* #1 : gradient plus doux + micro bordure claire + petite ombre — rendu plus proche d'un cadre photo */
+  background:linear-gradient(140deg, #4a5290 0%, #2a316a 55%, #1a1f4d 100%);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.14), 0 2px 6px -2px rgba(0,0,0,.6);
+  display:inline-flex; align-items:center; justify-content:center;
+  color:var(--text-1); font-weight:700; font-size:var(--fs-sm);
+  letter-spacing:.02em;
+}
+.home-greet-label{
+  font-size:13px; color:var(--text-3); line-height:1.2;
+  display:flex; align-items:center; gap:5px;
+  font-weight:400;  /* #2 : regular weight comme ref */
+  letter-spacing:.005em;
+}
+.home-greet-name{
+  font-family:var(--f-ui); font-size:22px; font-weight:800;  /* #4 : plus imposant */
+  letter-spacing:-.025em;                                       /* tracking un poil plus serré */
+  line-height:1.05; margin-top:3px;                             /* #5 : léger rééquilibrage */
+}
+
+/* ==============================================================
+   R5 · DIPTYQUE HERO — deux cards colorées (audit B2)
+   Split 44/56 (audit E1)
+   ============================================================== */
+.hero-duo{
+  display:grid;
+  grid-template-columns: 44fr 56fr;
+  gap:var(--sp-3);
+  margin-bottom:var(--sp-4);  /* C2 : plus d'air avant le highlight */
+}
+
+/* Card SOLDE — navy signature (data) */
+.card-balance{
+  background: #232a5e;  /* FLAT navy — D9 aligné ref */
+  border-radius:var(--r-lg);
+  padding: var(--sp-5);
+  min-height:230px;
+  display:flex; flex-direction:column; justify-content:space-between;
+  position:relative; overflow:hidden;
+}
+.card-balance::before{
+  /* Halo retiré — D9 : ref est aplat, on suit */
+  content:none;
+}
+/* Décor top-right (A3 : socle retiré, juste l'icône semi-transparente comme la ref) */
+.card-balance-deco{
+  position:absolute; top:14px; right:14px;
+  color:var(--text-1);
+  opacity:.55;
+  font-size:18px;
+  z-index:2;
+  display:flex; align-items:center; justify-content:center;
+}
+.card-balance-title{
+  font-family:var(--f-ui); font-weight:800;
+  font-size:var(--fs-xl);
+  line-height:.92; letter-spacing:-.035em;    /* #17 : ultra-tight comme ref */
+  position:relative; z-index:1;
+}
+.card-balance-amount{
+  font-family:var(--f-ui); font-weight:800;
+  font-size:var(--fs-2xl); letter-spacing:-.03em; line-height:1;
+  margin-top:var(--sp-3);
+  position:relative; z-index:1;
+}
+.card-balance-amount .curr{
+  font-size:var(--fs-lg); font-weight:700;
+  color:var(--text-2); margin-left:4px; letter-spacing:0;
+}
+
+
+/* Card ACTION — pastel bleu (CTA, audit B3) */
+.card-action{
+  background: var(--accent-primary-pastel);
+  border-radius:var(--r-lg);
+  padding: var(--sp-5);
+  min-height:230px;
+  display:flex; flex-direction:column; justify-content:space-between;
+  color:var(--text-on-hi-1);
+  position:relative; overflow:hidden;
+}
+.card-action-date{
+  font-size:var(--fs-2xs); font-weight:500; letter-spacing:.12em;   /* #25 : plus fin */
+  color:#334c8a; text-transform:uppercase;                            /* #26 : navy plus prononcé */
+}
+.card-action-title{
+  font-family:var(--f-ui); font-weight:800;
+  font-size:var(--fs-xl);                        /* #28 : 24px comme ref */
+  line-height:.95; letter-spacing:-.035em;       /* #27 : tighter */
+  margin-top:var(--sp-2);
+}
+/* Bouton "Start" — audit C3 : fond BLANC, texte DARK, cercle NOIR à droite */
+.card-action-cta{
+  display:inline-flex; align-items:center; gap:var(--sp-2);
+  background:var(--surface-hi); color:var(--text-on-hi-1);  /* cream bg — D6 */
+  padding: 5px 5px 5px var(--sp-3);
+  border-radius:var(--r-pill);
+  font-size:var(--fs-sm); font-weight:700;
+  align-self:flex-start;
+  margin-top:var(--sp-3);
+  transition: transform .12s;
+  height:40px;
+}
+.card-action-cta:active{ transform: scale(.96) }
+.card-action-cta-icon{
+  width:26px; height:26px; border-radius:var(--r-icon);  /* B3 : ratio 65% */
+  background:var(--ink-hi); color:#ffffff;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:11px;
+  padding-left:2px;  /* A4 : centrage optique du triangle */
+}
+
+/* D8 · Pattern INNER-PILL — overlay blanc semi-transparent pour sous-elements
+   sur cards colorees (comme Morning walk / Leg Day pills de la ref). */
+.inner-pill{
+  display:flex; align-items:center; gap:var(--sp-2);
+  padding:var(--sp-2) var(--sp-3);
+  background:rgba(255,255,255,.14);
+  border-radius:var(--r-md);
+  color:inherit;
+}
+.inner-pill-icon{
+  width:22px; height:22px; border-radius:var(--r-icon);
+  display:inline-flex; align-items:center; justify-content:center;
+  background:rgba(255,255,255,.22);
+  font-size:12px;
+  flex-shrink:0;
+}
+.inner-pill-body{ flex:1; min-width:0 }
+.inner-pill-title{ font-size:var(--fs-xs); font-weight:700; line-height:1.1 }
+.inner-pill-sub{ font-size:9.5px; opacity:.7; margin-top:1px; font-weight:600 }
+
+/* ==============================================================
+   R6 + G · HIGHLIGHT off-white + CARROUSEL 3D RÉEL
+   ============================================================== */
+.hero-3d-wrap{
+  background:var(--surface-hi);
+  color:var(--text-on-hi-1);
+  border-radius:var(--r-lg);
+  padding: var(--sp-4) var(--sp-3) var(--sp-3);
+  margin-bottom:var(--sp-5);
+  position:relative;
+  overflow:hidden;
+}
+/* Grain subtil (audit H3) */
+.hero-3d-wrap::before{
+  content:''; position:absolute; inset:0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.05 0 0 0 0 0.05 0 0 0 0 0.11 0 0 0 0.35 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/></svg>");
+  opacity:.5;
+  pointer-events:none;
+  mix-blend-mode:multiply;
+}
+.hero-3d-head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 0 var(--sp-2) var(--sp-2);
+  position:relative; z-index:2;
+}
+.hero-3d-lbl{
+  font-size:var(--fs-2xs); text-transform:uppercase; letter-spacing:.14em;
+  font-weight:700; color:var(--text-on-hi-2);
+}
+.hero-3d-count{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 10px 4px 4px;
+  background:var(--ink-hi); color:#fff;
+  border-radius:var(--r-pill);
+  font-size:var(--fs-2xs); font-weight:700;
+}
+.hero-3d-count-num{
+  width:20px; height:20px; border-radius:var(--r-icon);
+  background:var(--accent-primary); color:var(--ink-hi);
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:var(--fs-2xs); font-weight:800;
+}
+
+/* Canvas Three.js VTEX — audit G */
+.vtx-hero3d{
+  position:relative;
+  height:250px;
+  touch-action:pan-y;
+  user-select:none;
+  -webkit-user-select:none;
+  z-index:2;
+}
+#vtx3d-canvas{
+  position:absolute; inset:0;
+  width:100%; height:100%;
+  display:block;
+}
+#vtx3d-hit{
+  position:absolute; inset:0; z-index:5; cursor:grab;
+}
+#vtx3d-hit:active{ cursor:grabbing }
+.vtx-hero3d.is-transitioning{ pointer-events:none }
+
+/* Fallback CSS 3D (masqué si Three.js démarre) */
+.vtx3d-stage-fallback{
+  position:absolute; inset:0;
+  transform-style:preserve-3d;
+  perspective:1400px;
+  perspective-origin:center 55%;
+  z-index:1;
+}
+.vtx-hero3d.three-active .vtx3d-stage-fallback{ display:none }
+.vtx3d-card-fb{
+  position:absolute; top:50%; left:50%;
+  width:260px; height:164px;
+  margin:-82px 0 0 -130px;
+  border-radius:16px;
+  padding:var(--sp-4);
+  display:flex; flex-direction:column; justify-content:space-between;
+  color:#f5f7fc;
+  background: linear-gradient(155deg,#252B5B 0%,#12152c 55%,#0a0c1c 100%);
+  transform-style:preserve-3d;
+  transition: transform .55s cubic-bezier(.2,.85,.24,1.05), opacity .35s;
+  backface-visibility:hidden;
+  box-shadow: 0 20px 40px -20px rgba(0,0,0,.35);
+  overflow:hidden;
+}
+.vtx3d-card-fb::before{
+  content:''; position:absolute; inset:0;
+  background: radial-gradient(circle at 88% 12%, rgba(142,169,255,.32), transparent 45%);
+}
+.vtx3d-card-fb.is-active{ transform: translateZ(20px); z-index:3; opacity:1 }
+.vtx3d-card-fb.is-prev  { transform: translateX(-46%) translateZ(-90px) rotateY(28deg) scale(.86); z-index:2; opacity:.75 }
+.vtx3d-card-fb.is-next  { transform: translateX(46%) translateZ(-90px) rotateY(-28deg) scale(.86); z-index:2; opacity:.75 }
+
+/* Controls prev/next — audit G2 */
+.vtx3d-controls{
+  position:absolute; bottom:8px; left:50%; transform:translateX(-50%);
+  display:flex; gap:var(--sp-2); z-index:10;
+}
+.vtx3d-control{
+  width:30px; height:30px; border-radius:var(--r-icon);
+  background:rgba(10,13,30,.08);
+  color:var(--ink-hi);
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:14px;
+  transition:background .18s;
+}
+.vtx3d-control:hover{ background:rgba(10,13,30,.16) }
+.vtx3d-control-icon{ font-family:'Phosphor-Bold'; font-style:normal }
+
+/* Sub-info + dots — audit G3 : .on au lieu de .is-active */
+.vtx3d-sub{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: var(--sp-2) var(--sp-2) 0;
+  font-size:var(--fs-xs); color:var(--text-on-hi-2); font-weight:600;
+  position:relative; z-index:2;
+}
+.vtx-hero-sub{ transition:opacity .25s }
+.vtx3d-dots{ display:flex; gap:5px; }
+.vtx3d-dot{
+  width:6px; height:6px; border-radius:var(--r-icon);
+  background:rgba(10,13,30,.18);
+  transition: background .2s, width .2s;
+  border:0; padding:0; cursor:pointer;
+}
+.vtx3d-dot.on{ background:var(--ink-hi); width:16px; border-radius:var(--r-pill) }
+/* Alias au cas où : garde compat avec .is-active si utilisé ailleurs */
+.vtx3d-dot.is-active{ background:var(--ink-hi); width:16px; border-radius:var(--r-pill) }
+
+.vtx-swipe-hint{
+  text-align:center;
+  font-size:9.5px; color:var(--text-on-hi-2); font-weight:600;
+  text-transform:uppercase; letter-spacing:.14em;
+  margin-top:var(--sp-2);
+  position:relative; z-index:2;
+  transition: opacity .5s;
+}
+.vtx-swipe-hint.gone{ opacity:0 }
+
+/* Amount + pill sync hooks (vtex3d.js les met à jour) */
+.vtx3d-meta{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 0 var(--sp-2) var(--sp-3);
+  position:relative; z-index:2;
+}
+.vtx-hero-amt{
+  font-family:var(--f-ui); font-weight:800;
+  font-size:var(--fs-lg); letter-spacing:-.02em;
+  color:var(--ink-hi);
+  transition:opacity .25s;
+}
+.vtx-pill{
+  padding: 4px 10px;
+  background:var(--ink-hi); color:#fff;
+  border-radius:var(--r-pill);
+  font-size:var(--fs-2xs); font-weight:700;
+  display:inline-flex; align-items:center; gap:5px;
+}
+.vtx-pill-nm{ letter-spacing:.02em }
+
+/* ==============================================================
+   QUICK ACTIONS
+   ============================================================== */
+.quick-actions{
+  display:grid; grid-template-columns: repeat(3, 1fr);
+  gap:var(--sp-3);
+  margin-bottom:var(--sp-4);
+}
+.quick-action{
+  background:var(--surface-1);
+  border-radius:var(--r-md);
+  padding: var(--sp-3) var(--sp-2);
+  display:flex; flex-direction:column; align-items:center; gap:var(--sp-2);
+  transition: background .18s;
+}
+.quick-action:hover{ background:var(--surface-2) }
+.qa-icon{
+  width:var(--socle-md); height:var(--socle-md);
+  border-radius:var(--r-icon);
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:var(--icon-in-md);
+}
+.qa-icon.primary { background:rgba(142,169,255,.14); color:var(--accent-primary) }
+.qa-icon.warm    { background:rgba(255,107,61,.14);  color:var(--accent-warm)    }
+.qa-icon.gold    { background:rgba(230,179,78,.15);  color:var(--accent-gold)    }
+.qa-icon.positive{ background:rgba(74,222,128,.14);  color:var(--accent-positive)}
+.qa-label{ font-size:var(--fs-xs); font-weight:600 }
+
+/* ==============================================================
+   OBJECTIF — pattern icon + text + progress ring (audit E2, E3, D4)
+   ============================================================== */
+.goal-card{
+  background:var(--surface-hi);
+  color:var(--text-on-hi-1);
+  border-radius:var(--r-lg);
+  padding: var(--sp-4) var(--sp-5);
+  display:flex; align-items:center; gap:var(--sp-4);
+}
+.goal-icon-big{
+  width:var(--socle-lg); height:var(--socle-lg);
+  border-radius:var(--r-icon);
+  background:var(--accent-warm); color:#fff;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:var(--icon-in-lg);
+  flex-shrink:0;
+}
+.goal-body{ flex:1; min-width:0 }
+.goal-name{
+  font-family:var(--f-ui); font-weight:800; font-size:var(--fs-md);
+  letter-spacing:-.02em;
+}
+.goal-sub{
+  font-size:var(--fs-xs); color:var(--text-on-hi-2); font-weight:500;
+  margin-top:2px;
+}
+/* Ring de progression avec % au CENTRE */
+.goal-ring{
+  position:relative;
+  width:52px; height:52px;
+  flex-shrink:0;
+}
+.goal-ring svg{ position:absolute; inset:0; transform:rotate(-90deg) }
+.goal-ring-pct{
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--f-ui); font-weight:800;
+  font-size:11.5px;
+  color:var(--accent-warm);
+  letter-spacing:-.02em;
+}
+
+/* Fin summary */
+.fin-summary{
+  background:var(--surface-1);
+  border-radius:var(--r-lg);
+  padding:var(--sp-4) var(--sp-5);
+  display:grid; grid-template-columns: 1fr 1fr;
+  gap:var(--sp-4);
+  margin-top:var(--sp-4);
+}
+.fin-stat-lbl{
+  font-size:var(--fs-2xs); font-weight:600; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--text-3);
+  display:inline-flex; align-items:center; gap:4px;
+}
+.fin-stat-val{
+  font-family:var(--f-ui); font-weight:800; font-size:var(--fs-xl);
+  letter-spacing:-.02em; margin-top:var(--sp-1);
+}
+.fin-stat-val.pos{ color:var(--accent-positive) }
+.fin-stat-val.neg{ color:var(--text-1) }
+
+/* ==============================================================
+   SECTIONS + LISTES (R11)
+   ============================================================== */
+.section{ margin-top:var(--sp-6) }
+.section-head{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:var(--sp-4);  /* C3 : respiration avant liste */
+}
+.section-title{
+  font-family:var(--f-ui); font-weight:800; font-size:var(--fs-xl);
+  letter-spacing:-.03em;
+}  /* audit A3 : titre section plus grand */
+.section-link{
+  font-size:var(--fs-xs); font-weight:600; color:var(--text-3);
+  display:inline-flex; align-items:center; gap:4px;
+  cursor:pointer;
+}
+.section-link:hover{ color:var(--text-2) }
+
+.list{
+  background:var(--surface-1);
+  border-radius:var(--r-lg);
+  padding:var(--sp-2) var(--sp-5);
+}
+.list-row{
+  display:flex; align-items:center; gap:var(--sp-3);
+  padding:var(--sp-4) 0;  /* C4 : row height 68-72px comme ref */
+  position:relative;
+}
+.list-row + .list-row::before{
+  content:''; position:absolute; top:0; left:calc(var(--socle-md) + var(--sp-3)); right:0;
+  height:1px; background:rgba(168,175,208,.08);
+}
+
+/* Timeline pattern (audit E5) */
+.list.timeline .list-row{ padding-left:0 }
+.list.timeline .list-row + .list-row::before{ display:none }
+.list.timeline .list-icon{ position:relative }
+.list.timeline .list-row:not(:last-child) .list-icon::after{
+  content:''; position:absolute;
+  top:calc(100% + 4px); left:50%;
+  width:0; height:calc(var(--sp-3) * 2 + 24px);
+  border-left:2px dotted rgba(168,175,208,.32);
+  transform:translateX(-50%);
+}
+
+.list-icon{
+  width:var(--socle-md); height:var(--socle-md);
+  border-radius:var(--r-icon);
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:var(--icon-in-md);
+  flex-shrink:0;
+}
+.tint-primary { background:rgba(142,169,255,.16); color:var(--accent-primary) }
+.tint-warm    { background:rgba(255,107,61,.16);  color:var(--accent-warm)    }
+.tint-positive{ background:rgba(74,222,128,.14);  color:var(--accent-positive)}
+.tint-gold    { background:rgba(230,179,78,.15);  color:var(--accent-gold)    }
+.tint-danger  { background:rgba(239,90,103,.14);  color:var(--accent-danger)  }
+.tint-neutral { background:var(--surface-2);      color:var(--text-2)         }
+
+.list-body{ flex:1; min-width:0 }
+.list-title{
+  font-size:var(--fs-sm); font-weight:600;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.list-sub{
+  font-size:var(--fs-xs); color:var(--text-3); margin-top:2px; font-weight:500;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.list-aside{ flex-shrink:0; display:flex; align-items:center; gap:var(--sp-2) }
+.list-amount{
+  font-family:var(--f-mono); font-size:var(--fs-sm); font-weight:700;
+  text-align:right;
+}
+.list-amount.pos{ color:var(--accent-positive) }
+.list-amount.neg{ color:var(--text-1) }
+.list-chev{ color:var(--text-3); font-size:16px }
+
+.pill-btn{
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:var(--sp-2) var(--sp-4);
+  border-radius:var(--r-pill);
+  font-size:var(--fs-xs); font-weight:700; letter-spacing:.02em;
+  transition: transform .12s, background .18s;
+  gap:6px;
+}
+.pill-btn:active{ transform: scale(.96) }
+.pill-btn.positive{ background:var(--accent-positive); color:#052e12 }
+.pill-btn.primary { background:var(--accent-primary);  color:#0a0d1e }
+.pill-btn.dark    { background:var(--ink-hi);          color:#fff    }
+.pill-btn.ghost   { background:var(--surface-2);       color:var(--text-1) }
+
+/* Tiles grid */
+.tiles-grid{
+  display:grid; grid-template-columns: 1fr 1fr;
+  gap:var(--sp-3);
+}
+.tile{
+  background:var(--surface-1);
+  border-radius:var(--r-md);
+  padding:var(--sp-4);
+  display:flex; flex-direction:column; gap:var(--sp-3);
+  transition: background .18s;
+  text-align:left; width:100%;
+}
+.tile:hover{ background:var(--surface-2) }
+.tile-icon{
+  width:var(--socle-md); height:var(--socle-md);
+  border-radius:var(--r-icon);
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:var(--icon-in-md);
+}
+.tile-title{
+  font-family:var(--f-ui); font-weight:800; font-size:var(--fs-md);
+  letter-spacing:-.02em; line-height:1.1;
+}
+.tile-sub{
+  font-size:var(--fs-xs); color:var(--text-3); font-weight:500; margin-top:2px;
+}
+
+/* Tabbar */
+.tabbar{
+  position:absolute; left:0; right:0; bottom:0;
+  background: linear-gradient(180deg, transparent 0%, rgba(5,5,16,.92) 30%, var(--bg) 100%);
+  padding:var(--sp-3) var(--sp-4) var(--sp-6);
+  display:flex; align-items:center; justify-content:space-between;
+  gap:var(--sp-2); z-index:50;
+}
+.tab{
+  flex:1; height:56px; border-radius:var(--r-pill);
+  display:inline-flex; align-items:center; justify-content:center;
+  gap:var(--sp-2);
+  color:var(--text-3);
+  font-size:var(--icon-in-md);
+  transition: color .18s, background .18s, flex .28s;
+}
+.tab .tab-label{
+  display:none;
+  font-size:var(--fs-sm); font-weight:700; letter-spacing:.01em;
+}
+.tab.active{
+  background:var(--accent-gold);
+  color:#1a1200;
+  flex: 1.8;
+}
+.tab.active .tab-label{ display:inline }
+
+/* Reusable helpers for other views */
+.profile-hero{
+  background:var(--surface-1);
+  border-radius:var(--r-lg);
+  padding:var(--sp-5) var(--sp-4);
+  display:flex; gap:var(--sp-4); align-items:center;
+  margin-bottom:var(--sp-4);
+}
+.profile-hero .avatar{ width:var(--socle-lg); height:var(--socle-lg); font-size:var(--fs-md) }
+.profile-hero-name{ font-family:var(--f-ui); font-weight:800; font-size:var(--fs-lg); letter-spacing:-.02em }
+.profile-hero-sub{ font-size:var(--fs-xs); color:var(--text-3); font-weight:500; margin-top:2px }
+.profile-hero-tag{
+  display:inline-flex; align-items:center; gap:4px;
+  padding:3px 8px;
+  background:rgba(74,222,128,.14); color:var(--accent-positive);
+  border-radius:var(--r-pill);
+  font-size:10px; font-weight:700; margin-top:var(--sp-2);
+}
+.group-lbl{
+  font-size:var(--fs-2xs); text-transform:uppercase; letter-spacing:.14em;
+  color:var(--text-3); font-weight:600;
+  margin:var(--sp-5) var(--sp-1) var(--sp-2);
+  display:flex; align-items:center; gap:var(--sp-2);
+}
+.group-lbl i{ font-size:12px }
+.toggle{
+  width:38px; height:22px; border-radius:var(--r-pill);
+  background:var(--surface-2); position:relative;
+  transition: background .2s; cursor:pointer;
+}
+.toggle .knob{
+  position:absolute; top:2px; left:2px; width:18px; height:18px;
+  background:#fff; border-radius:var(--r-icon);
+  transition: left .2s;
+}
+.toggle.on{ background:var(--accent-positive) }
+.toggle.on .knob{ left:18px }
+.search{
+  display:flex; align-items:center; gap:var(--sp-2);
+  background:var(--surface-1);
+  border-radius:var(--r-pill);
+  padding:var(--sp-3) var(--sp-4);
+  margin-bottom:var(--sp-4);
+  border:1px solid rgba(168,175,208,.08);
+}
+.search i{ color:var(--text-3); font-size:16px }
+.search input{ flex:1; background:none; border:0; outline:0; color:var(--text-1); font-size:var(--fs-sm) }
+.search input::placeholder{ color:var(--text-3) }
+.day-div{
+  font-size:var(--fs-2xs); text-transform:uppercase; letter-spacing:.14em;
+  color:var(--text-3); font-weight:600;
+  margin: var(--sp-5) var(--sp-1) var(--sp-2);
+}
+.receive-card{ background:var(--surface-1); border-radius:var(--r-lg); padding:var(--sp-5) var(--sp-4) }
+.receive-qr{
+  aspect-ratio:1; max-width:220px; margin:var(--sp-4) auto;
+  background:var(--surface-hi);
+  border-radius:var(--r-md);
+  display:flex; align-items:center; justify-content:center;
+  color:var(--ink-hi); font-size:130px;
+}
+.bank-row{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:var(--sp-3) 0;
+  border-bottom:1px solid rgba(168,175,208,.08);
+}
+.bank-row:last-child{ border-bottom:0 }
+.bank-lbl{
+  font-size:var(--fs-2xs); text-transform:uppercase; letter-spacing:.14em;
+  font-weight:600; color:var(--text-3);
+}
+.bank-val{ font-size:var(--fs-sm); font-weight:600; text-align:right }
+.bank-val.mono{ font-family:var(--f-mono); font-weight:700 }
+.btn-ghost-full{
+  display:flex; align-items:center; justify-content:center; gap:var(--sp-2);
+  background:var(--surface-2);
+  border-radius:var(--r-md);
+  padding:var(--sp-3) var(--sp-4);
+  font-size:var(--fs-sm); font-weight:600;
+  width:100%; margin-top:var(--sp-2);
+  transition: background .18s;
+}
+.btn-ghost-full:hover{ background:#232a4d }
+.btn-primary-full{
+  display:flex; align-items:center; justify-content:center; gap:var(--sp-2);
+  background:var(--accent-primary);
+  border-radius:var(--r-md);
+  padding:var(--sp-4);
+  color:#0a0d1e;
+  font-size:var(--fs-sm); font-weight:700;
+  width:100%; margin-top:var(--sp-3);
+}
+.bank-grid{
+  display:grid; grid-template-columns:1fr 1fr;
+  gap:var(--sp-2); margin-top:var(--sp-4);
+}
+.bank-tile{
+  background:var(--surface-2); border-radius:var(--r-md);
+  padding:var(--sp-3);
+}
+.bank-tile-lbl{
+  font-size:9.5px; text-transform:uppercase; letter-spacing:.14em;
+  color:var(--text-3); font-weight:600;
+}
+.bank-tile-val{ font-size:var(--fs-sm); font-weight:700; margin-top:4px }
+.notif{
+  display:flex; gap:var(--sp-3); padding:var(--sp-4) 0;
+  border-bottom:1px solid rgba(168,175,208,.08);
+}
+.notif:last-child{ border-bottom:0 }
+.notif-body{ flex:1; min-width:0 }
+.notif-title{ font-size:var(--fs-sm); font-weight:700 }
+.notif-sub  { font-size:var(--fs-xs); color:var(--text-3); font-weight:500; margin-top:3px; line-height:1.5 }
+.notif-time { font-size:9.5px; color:var(--text-3); margin-top:6px; font-weight:600; letter-spacing:.06em; text-transform:uppercase }
+.card-full{
+  background: linear-gradient(155deg, #252B5B 0%, #12152c 55%, #0a0c1c 100%);
+  border-radius:var(--r-lg);
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  aspect-ratio: 1.586;
+  display:flex; flex-direction:column; justify-content:space-between;
+  color:var(--text-1);
+  position:relative; overflow:hidden;
+  margin-bottom:var(--sp-4);
+}
+.card-full::before{
+  content:''; position:absolute; inset:0;
+  background: radial-gradient(circle at 88% 12%, rgba(142,169,255,.28), transparent 45%);
+  pointer-events:none;
+}
+.card-full-brand{ font-family:var(--f-ui); font-weight:800; font-size:var(--fs-lg); letter-spacing:.1em; position:relative; z-index:1 }
+.card-full-chip{
+  width:36px; height:26px; border-radius:5px;
+  background: linear-gradient(135deg,#d9b579,#a08343);
+  position:relative; z-index:1;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.15);
+}
+.card-full-num{ font-family:var(--f-mono); font-size:var(--fs-md); font-weight:700; letter-spacing:.16em; position:relative; z-index:1 }
+.card-full-bottom{ display:flex; justify-content:space-between; align-items:flex-end; position:relative; z-index:1 }
+.card-full-holder-lbl{ font-size:9px; text-transform:uppercase; letter-spacing:.16em; color:var(--text-2); font-weight:600 }
+.card-full-holder{ font-family:var(--f-ui); font-weight:800; font-size:var(--fs-md); margin-top:2px }
+.card-full-network{ font-family:var(--f-ui); font-style:italic; font-weight:800; font-size:var(--fs-lg); letter-spacing:.02em }
+
+@media (max-width: 420px){
+  body{ padding:0 }
+  .app-shell{ border-radius:0; box-shadow:none; max-height:100vh; min-height:100vh; width:100vw }
+  .app-notch{ display:none }
+}
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <div class="app-notch"></div>
+  <div class="app-viewport" id="app-viewport">
+
+    <!-- ============= VIEW · ACCUEIL ============= -->
+    <div class="view active" id="view-accueil">
+      <div class="home-header">
+        <div class="home-greet">
+          <div class="avatar">AK</div>
+          <div>
+            <div class="home-greet-label">Hello there!</div>
+            <div class="home-greet-name">Alex Kaba</div>
+          </div>
+        </div>
+        <div class="home-actions">
+          <button class="btn-round" onclick="showView('notifications')" aria-label="Notifications">
+            <i class="ph-fill ph-bell"></i>
+            <span class="dot-badge"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- R5 · DIPTYQUE HERO — deux cards colorées -->
+      <div class="hero-duo">
+        <div class="card-balance">
+          <span class="card-balance-deco" aria-hidden="true"><i class="ph ph-wallet"></i></span>
+          <div class="card-balance-title">Wallet<br>VTEX</div>
+          <div class="card-balance-amount">4&nbsp;286<span class="curr">€</span></div>
+        </div>
+        <div class="card-action">
+          <div>
+            <div class="card-action-date">30 août 2026</div>
+            <div class="card-action-title">Envoyer<br>vers un<br>contact</div>
+          </div>
+          <button class="card-action-cta" onclick="showView('envoyer')">
+            Commencer
+            <span class="card-action-cta-icon"><i class="ph-fill ph-play"></i></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- HIGHLIGHT off-white + CARROUSEL 3D VTEX RÉEL -->
+      <div class="hero-3d-wrap">
+        <div class="hero-3d-head">
+          <span class="hero-3d-lbl">Mes cartes VTEX</span>
+          <span class="hero-3d-count"><span class="hero-3d-count-num">3</span> actives</span>
+        </div>
+
+        <div class="vtx-hero3d" id="vtx-hero3d">
+          <canvas id="vtx3d-canvas"></canvas>
+          <div id="vtx3d-hit" tabindex="0" role="region" aria-label="Carrousel de cartes VTEX"></div>
+
+          <!-- Fallback CSS 3D (masqué si Three.js démarre correctement) -->
+          <div class="vtx3d-stage-fallback" id="vtx3d-stage-fb">
+            <div class="vtx3d-card-fb is-active">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;position:relative;z-index:1">
+                <div style="font-family:var(--f-ui);font-weight:800;font-size:15px;letter-spacing:.1em">VTEX</div>
+                <div style="width:28px;height:20px;border-radius:4px;background:linear-gradient(135deg,#d9b579,#a08343)"></div>
+              </div>
+              <div style="font-family:var(--f-mono);font-weight:700;font-size:13px;letter-spacing:.12em;position:relative;z-index:1">4923 •••• •••• 4417</div>
+              <div style="display:flex;justify-content:space-between;align-items:flex-end;position:relative;z-index:1">
+                <div>
+                  <div style="font-size:8.5px;text-transform:uppercase;letter-spacing:.16em;color:var(--text-2);font-weight:600">Titulaire</div>
+                  <div style="font-family:var(--f-ui);font-weight:800;font-size:11.5px;margin-top:2px">Alex Kaba</div>
+                </div>
+                <div style="font-family:var(--f-ui);font-style:italic;font-weight:800;font-size:15px">VISA</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="vtx3d-controls">
+            <button class="vtx3d-control" onclick="window.vtx3d&&window.vtx3d.previous()" aria-label="Carte précédente">
+              <i class="vtx3d-control-icon"><i class="ph-bold ph-caret-left"></i></i>
+            </button>
+            <button class="vtx3d-control" onclick="window.vtx3d&&window.vtx3d.next()" aria-label="Carte suivante">
+              <i class="vtx3d-control-icon"><i class="ph-bold ph-caret-right"></i></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="vtx3d-meta">
+          <span class="vtx-hero-amt" id="vtx-hero-amt">2 140,00 €</span>
+          <span class="vtx-pill"><span class="vtx-pill-nm" id="vtx-pill-nm">Mastercard physique</span></span>
+        </div>
+        <div class="vtx3d-sub">
+          <span class="vtx-hero-sub" id="vtx-hero-sub">Solde disponible · Mastercard physique</span>
+          <div class="vtx3d-dots" id="vtx3d-dots"></div>
+        </div>
+        <div class="vtx-swipe-hint" id="vtx-swipe-hint">Glisser pour changer</div>
+      </div>
+
+      <!-- QUICK ACTIONS -->
+      <div class="quick-actions">
+        <button class="quick-action" onclick="showView('envoyer')">
+          <span class="qa-icon primary"><i class="ph-fill ph-paper-plane-tilt"></i></span>
+          <span class="qa-label">Envoyer</span>
+        </button>
+        <button class="quick-action" onclick="showView('recevoir')">
+          <span class="qa-icon positive"><i class="ph-fill ph-hand-coins"></i></span>
+          <span class="qa-label">Recevoir</span>
+        </button>
+        <button class="quick-action" onclick="showView('banque')">
+          <span class="qa-icon gold"><i class="ph-fill ph-bank"></i></span>
+          <span class="qa-label">RIB</span>
+        </button>
+      </div>
+
+      <!-- OBJECTIF -->
+      <div class="goal-card">
+        <div class="goal-icon-big"><i class="ph-fill ph-airplane-tilt"></i></div>
+        <div class="goal-body">
+          <div class="goal-name">Voyage Lisbonne</div>
+          <div class="goal-sub">640 € sur 1 000 €</div>
+        </div>
+        <div class="goal-ring">
+          <svg viewBox="0 0 52 52" width="52" height="52">
+            <circle cx="26" cy="26" r="22" fill="none" stroke="rgba(10,13,30,.10)" stroke-width="3"/>
+            <circle cx="26" cy="26" r="22" fill="none" stroke="var(--accent-warm)" stroke-width="3"
+                    stroke-dasharray="138.2" stroke-dashoffset="49.75"
+                    stroke-linecap="round"/>
+          </svg>
+          <div class="goal-ring-pct">64%</div>
+        </div>
+      </div>
+
+      <div class="fin-summary">
+        <div>
+          <span class="fin-stat-lbl"><i class="ph-fill ph-arrow-down" style="color:var(--accent-positive)"></i>Entrées</span>
+          <div class="fin-stat-val pos">+2 140€</div>
+        </div>
+        <div>
+          <span class="fin-stat-lbl"><i class="ph-fill ph-arrow-up" style="color:var(--text-3)"></i>Sorties</span>
+          <div class="fin-stat-val neg">−1 823€</div>
+        </div>
+      </div>
+
+      <!-- ACTIVITÉ · timeline pointillée -->
+      <div class="section">
+        <div class="section-head">
+          <div class="section-title">Today's Activity</div>
+          <a class="section-link" onclick="showView('historique')">Voir tout <i class="ph-bold ph-caret-right"></i></a>
+        </div>
+        <div class="list timeline">
+          <div class="list-row">
+            <div class="list-icon tint-primary"><i class="ph-fill ph-shopping-bag"></i></div>
+            <div class="list-body">
+              <div class="list-title">Zalando</div>
+              <div class="list-sub">Aujourd'hui · 14:22</div>
+            </div>
+            <div class="list-aside"><span class="list-amount neg">−74,90 €</span></div>
+          </div>
+          <div class="list-row">
+            <div class="list-icon tint-positive"><i class="ph-fill ph-arrow-down"></i></div>
+            <div class="list-body">
+              <div class="list-title">Virement · Marc L.</div>
+              <div class="list-sub">Aujourd'hui · 09:04</div>
+            </div>
+            <div class="list-aside"><button class="pill-btn positive">Now</button></div>
+          </div>
+          <div class="list-row">
+            <div class="list-icon tint-warm"><i class="ph-fill ph-fork-knife"></i></div>
+            <div class="list-body">
+              <div class="list-title">Le Bistrot du Coin</div>
+              <div class="list-sub">Hier · 20:45</div>
+            </div>
+            <div class="list-aside"><span class="list-amount neg">−32,50 €</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="height:20px"></div>
+    </div>
+
+
+    <!-- ============= VIEW · CARTES ============= -->
+    <div class="view" id="view-cartes">
+      <div class="app-header">
+        <button class="btn-round" onclick="showView('accueil')"><i class="ph-bold ph-caret-left"></i></button>
+        <div class="app-header-title">Mes cartes</div>
+        <button class="btn-round"><i class="ph-bold ph-plus"></i></button>
+      </div>
+      <div class="card-full">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;position:relative;z-index:1">
+          <div class="card-full-brand">VTEX</div>
+          <div class="card-full-chip"></div>
+        </div>
+        <div style="position:relative;z-index:1"><div class="card-full-num">4923 •••• •••• 4417</div></div>
+        <div class="card-full-bottom">
+          <div><div class="card-full-holder-lbl">Titulaire</div><div class="card-full-holder">Alex Kaba</div></div>
+          <div class="card-full-network">VISA</div>
+        </div>
+      </div>
+      <div class="quick-actions">
+        <button class="quick-action"><span class="qa-icon primary"><i class="ph-fill ph-snowflake"></i></span><span class="qa-label">Geler</span></button>
+        <button class="quick-action"><span class="qa-icon warm"><i class="ph-fill ph-lock-key"></i></span><span class="qa-label">PIN</span></button>
+        <button class="quick-action"><span class="qa-icon gold"><i class="ph-fill ph-eye"></i></span><span class="qa-label">Détails</span></button>
+      </div>
+      <div class="section">
+        <div class="section-head"><div class="section-title">Contrôles</div></div>
+        <div class="list">
+          <div class="list-row"><div class="list-icon tint-primary"><i class="ph-fill ph-globe"></i></div><div class="list-body"><div class="list-title">Paiements en ligne</div><div class="list-sub">Autorisés partout</div></div><div class="list-aside"><div class="toggle on" onclick="this.classList.toggle('on')"><div class="knob"></div></div></div></div>
+          <div class="list-row"><div class="list-icon tint-neutral"><i class="ph-fill ph-wifi-high"></i></div><div class="list-body"><div class="list-title">Sans contact</div><div class="list-sub">Plafond 50 €</div></div><div class="list-aside"><div class="toggle on" onclick="this.classList.toggle('on')"><div class="knob"></div></div></div></div>
+          <div class="list-row"><div class="list-icon tint-neutral"><i class="ph-fill ph-money"></i></div><div class="list-body"><div class="list-title">Retrait DAB</div><div class="list-sub">Plafond 500 € / jour</div></div><div class="list-aside"><div class="toggle on" onclick="this.classList.toggle('on')"><div class="knob"></div></div></div></div>
+          <div class="list-row"><div class="list-icon tint-danger"><i class="ph-fill ph-warning-octagon"></i></div><div class="list-body"><div class="list-title">Carte perdue ou volée</div><div class="list-sub">Bloquer définitivement</div></div><div class="list-aside"><i class="ph-bold ph-caret-right list-chev"></i></div></div>
+        </div>
+      </div>
+      <div style="height:20px"></div>
+    </div>
+
+
+    <!-- ============= VIEW · HISTORIQUE ============= -->
+    <div class="view" id="view-historique">
+      <div class="app-header">
+        <button class="btn-round" onclick="showView('accueil')"><i class="ph-bold ph-caret-left"></i></button>
+        <div class="app-header-title">Historique</div>
+        <button class="btn-round"><i class="ph-bold ph-funnel"></i></button>
+      </div>
+      <div class="search"><i class="ph-bold ph-magnifying-glass"></i><input placeholder="Rechercher un mouvement…"></div>
+      <div class="day-div">Aujourd'hui</div>
+      <div class="list">
+        <div class="list-row"><div class="list-icon tint-primary"><i class="ph-fill ph-shopping-bag"></i></div><div class="list-body"><div class="list-title">Zalando</div><div class="list-sub">Achat en ligne · 14:22</div></div><div class="list-aside"><span class="list-amount neg">−74,90 €</span></div></div>
+        <div class="list-row"><div class="list-icon tint-positive"><i class="ph-fill ph-arrow-down"></i></div><div class="list-body"><div class="list-title">Marc L.</div><div class="list-sub">Virement reçu · 09:04</div></div><div class="list-aside"><span class="list-amount pos">+140,00 €</span></div></div>
+      </div>
+      <div class="day-div">Hier · 29 août</div>
+      <div class="list">
+        <div class="list-row"><div class="list-icon tint-warm"><i class="ph-fill ph-fork-knife"></i></div><div class="list-body"><div class="list-title">Le Bistrot du Coin</div><div class="list-sub">Restaurant · 20:45</div></div><div class="list-aside"><span class="list-amount neg">−32,50 €</span></div></div>
+        <div class="list-row"><div class="list-icon tint-neutral"><i class="ph-fill ph-gas-pump"></i></div><div class="list-body"><div class="list-title">TotalEnergies</div><div class="list-sub">Carburant · 17:12</div></div><div class="list-aside"><span class="list-amount neg">−58,20 €</span></div></div>
+        <div class="list-row"><div class="list-icon tint-primary"><i class="ph-fill ph-shopping-cart"></i></div><div class="list-body"><div class="list-title">Carrefour</div><div class="list-sub">Courses · 11:38</div></div><div class="list-aside"><span class="list-amount neg">−87,44 €</span></div></div>
+      </div>
+      <div class="day-div">27 août</div>
+      <div class="list">
+        <div class="list-row"><div class="list-icon tint-positive"><i class="ph-fill ph-briefcase"></i></div><div class="list-body"><div class="list-title">Salaire</div><div class="list-sub">Virement récurrent · 08:00</div></div><div class="list-aside"><span class="list-amount pos">+2 000,00 €</span></div></div>
+        <div class="list-row"><div class="list-icon tint-gold"><i class="ph-fill ph-house"></i></div><div class="list-body"><div class="list-title">Loyer août</div><div class="list-sub">Prélèvement · 08:00</div></div><div class="list-aside"><span class="list-amount neg">−780,00 €</span></div></div>
+      </div>
+      <div style="height:20px"></div>
+    </div>
+
+
+    <!-- ============= VIEW · NOTIFICATIONS ============= -->
+    <div class="view" id="view-notifications">
+      <div class="app-header">
+        <button class="btn-round" onclick="showView('accueil')"><i class="ph-bold ph-caret-left"></i></button>
+        <div class="app-header-title">Alertes</div>
+        <button class="btn-round"><i class="ph-bold ph-check"></i></button>
+      </div>
+      <div class="list">
+        <div class="notif"><div class="list-icon tint-positive"><i class="ph-fill ph-arrow-down"></i></div><div class="notif-body"><div class="notif-title">Virement de 140 € reçu</div><div class="notif-sub">De Marc L. · Nouveau solde : 4 286 €</div><div class="notif-time">Il y a 4h</div></div></div>
+        <div class="notif"><div class="list-icon tint-warm"><i class="ph-fill ph-shopping-bag"></i></div><div class="notif-body"><div class="notif-title">Paiement chez Zalando</div><div class="notif-sub">74,90 € débités sur ta carte •••• 4417</div><div class="notif-time">Il y a 6h</div></div></div>
+        <div class="notif"><div class="list-icon tint-primary"><i class="ph-fill ph-shield-check"></i></div><div class="notif-body"><div class="notif-title">Nouvel appareil connecté</div><div class="notif-sub">iPhone 15 · Bruxelles · Session sécurisée</div><div class="notif-time">Hier</div></div></div>
+        <div class="notif"><div class="list-icon tint-gold"><i class="ph-fill ph-target"></i></div><div class="notif-body"><div class="notif-title">Objectif "Lisbonne" à 64 %</div><div class="notif-sub">Encore 360 € pour l'atteindre.</div><div class="notif-time">Il y a 2 jours</div></div></div>
+      </div>
+      <div style="height:20px"></div>
+    </div>
+
+
+    <!-- ============= VIEW · PROFIL ============= -->
+    <div class="view" id="view-profil">
+      <div class="app-header">
+        <button class="btn-round" onclick="showView('accueil')"><i class="ph-bold ph-caret-left"></i></button>
+        <div class="app-header-title">Profil</div>
+        <button class="btn-round"><i class="ph-bold ph-pencil-simple"></i></button>
+      </div>
+      <div class="profile-hero">
+        <div class="avatar">AK</div>
+        <div style="flex:1">
+          <div class="profile-hero-name">Alex Kaba</div>
+          <div class="profile-hero-sub">alex.kaba@vtex.eu</div>
+          <span class="profile-hero-tag"><i class="ph-fill ph-check-circle" style="font-size:11px"></i>Vérifié</span>
+        </div>
+      </div>
+      <div class="group-lbl"><i class="ph-fill ph-key"></i>Sécurité</div>
+      <div class="list">
+        <div class="list-row"><div class="list-icon tint-primary"><i class="ph-fill ph-fingerprint"></i></div><div class="list-body"><div class="list-title">Authentification biométrique</div><div class="list-sub">Passkey iPhone 15</div></div><div class="list-aside"><i class="ph-bold ph-caret-right list-chev"></i></div></div>
+        <div class="list-row"><div class="list-icon tint-neutral"><i class="ph-fill ph-devices"></i></div><div class="list-body"><div class="list-title">Appareils connectés</div><div class="list-sub">2 sessions actives</div></div><div class="list-aside"><i class="ph-bold ph-caret-right list-chev"></i></div></div>
+        <div class="list-row"><div class="list-icon tint-warm"><i class="ph-fill ph-lock-key"></i></div><div class="list-body"><div class="list-title">Code PIN carte</div><div class="list-sub">Modifier via conseiller</div></div><div class="list-aside"><i class="ph-bold ph-caret-right list-chev"></i></div></div>
+      </div>
+      <div class="group-lbl"><i class="ph-fill ph-sliders-horizontal"></i>Préférences</div>
+      <div class="list">
+        <div class="list-row"><div class="list-icon tint-positive"><i class="ph-fill ph-bell"></i></div><div class="list-body"><div class="list-title">Notifications push</div><div class="list-sub">Mouvements en temps réel</div></div><div class="list-aside"><div class="toggle on" onclick="this.classList.toggle('on')"><div class="knob"></div></div></div></div>
+        <div class="list-row"><div class="list-icon tint-gold"><i class="ph-fill ph-currency-eur"></i></div><div class="list-body"><div class="list-title">Devise</div><div class="list-sub">Euro (€)</div></div><div class="list-aside"><i class="ph-bold ph-caret-right list-chev"></i></div></div>
+        <div class="list-row"><div class="list-icon tint-primary"><i class="ph-fill ph-translate"></i></div><div class="list-body"><div class="list-title">Langue</div><div class="list-sub">Français</div></div><div class="list-aside"><i class="ph-bold ph-caret-right list-chev"></i></div></div>
+      </div>
+      <div class="group-lbl"><i class="ph-fill ph-question"></i>Aide</div>
+      <div class="list">
+        <div class="list-row"><div class="list-icon tint-primary"><i class="ph-fill ph-headset"></i></div><div class="list-body"><div class="list-title">Contacter le support</div><div class="list-sub">Gestionnaire dédié</div></div><div class="list-aside"><i class="ph-bold ph-caret-right list-chev"></i></div></div>
+        <div class="list-row"><div class="list-icon tint-danger"><i class="ph-fill ph-sign-out"></i></div><div class="list-body"><div class="list-title" style="color:var(--accent-danger)">Se déconnecter</div><div class="list-sub">Terminer la session</div></div></div>
+      </div>
+      <div style="text-align:center;font-size:var(--fs-2xs);color:var(--text-3);margin-top:var(--sp-6);letter-spacing:.08em">VTEX · Version 2.4.1 · Fonds garantis</div>
+      <div style="height:20px"></div>
+    </div>
+
+
+    <!-- ============= VIEW · ENVOYER ============= -->
+    <div class="view" id="view-envoyer">
+      <div class="app-header">
+        <button class="btn-round" onclick="showView('accueil')"><i class="ph-bold ph-caret-left"></i></button>
+        <div class="app-header-title">Envoyer</div>
+        <button class="btn-round"><i class="ph-bold ph-clock-counter-clockwise"></i></button>
+      </div>
+      <div class="goal-card" style="margin-bottom:var(--sp-5)">
+        <div class="goal-icon-big" style="background:var(--accent-primary);color:var(--ink-hi)"><i class="ph-fill ph-wallet"></i></div>
+        <div class="goal-body">
+          <div class="goal-name">4 286 €</div>
+          <div class="goal-sub">Solde · carte •••• 4417</div>
+        </div>
+      </div>
+      <div class="tiles-grid">
+        <button class="tile"><span class="tile-icon tint-primary"><i class="ph-fill ph-users-three"></i></span><div><div class="tile-title">Bénéficiaires</div><div class="tile-sub">Ajouter, modifier</div></div></button>
+        <button class="tile"><span class="tile-icon tint-warm"><i class="ph-fill ph-users-four"></i></span><div><div class="tile-title">Partage de fonds</div><div class="tile-sub">Répartir une dépense</div></div></button>
+        <button class="tile"><span class="tile-icon tint-positive"><i class="ph-fill ph-arrows-left-right"></i></span><div><div class="tile-title">Virement</div><div class="tile-sub">Instantané ou classique</div></div></button>
+        <button class="tile"><span class="tile-icon tint-gold"><i class="ph-fill ph-arrows-clockwise"></i></span><div><div class="tile-title">Entre mes cartes</div><div class="tile-sub">Déplacer des fonds</div></div></button>
+      </div>
+      <div class="section">
+        <div class="section-head"><div class="section-title">Envois récents</div></div>
+        <div class="list">
+          <div class="list-row"><div class="list-icon tint-neutral"><i class="ph-fill ph-user"></i></div><div class="list-body"><div class="list-title">Sophie M.</div><div class="list-sub">FR76 •••• 1234</div></div><div class="list-aside"><button class="pill-btn primary">Envoyer</button></div></div>
+          <div class="list-row"><div class="list-icon tint-neutral"><i class="ph-fill ph-user"></i></div><div class="list-body"><div class="list-title">Thomas B.</div><div class="list-sub">FR14 •••• 8891</div></div><div class="list-aside"><button class="pill-btn primary">Envoyer</button></div></div>
+          <div class="list-row"><div class="list-icon tint-neutral"><i class="ph-fill ph-user"></i></div><div class="list-body"><div class="list-title">Léa P.</div><div class="list-sub">BE68 •••• 3702</div></div><div class="list-aside"><button class="pill-btn primary">Envoyer</button></div></div>
+        </div>
+      </div>
+      <div style="height:20px"></div>
+    </div>
+
+
+    <!-- ============= VIEW · RECEVOIR ============= -->
+    <div class="view" id="view-recevoir">
+      <div class="app-header">
+        <button class="btn-round" onclick="showView('accueil')"><i class="ph-bold ph-caret-left"></i></button>
+        <div class="app-header-title">Recevoir</div>
+        <button class="btn-round"><i class="ph-bold ph-share-network"></i></button>
+      </div>
+      <div class="receive-card">
+        <div style="display:flex;align-items:center;gap:var(--sp-3)">
+          <div class="avatar" style="width:var(--socle-lg);height:var(--socle-lg);font-size:var(--fs-md)">AK</div>
+          <div>
+            <div style="font-family:var(--f-ui);font-size:var(--fs-md);font-weight:800;letter-spacing:-.02em">Alex Kaba</div>
+            <div style="font-size:var(--fs-xs);color:var(--text-3);font-weight:500;margin-top:2px">Compte Wallet · EUR</div>
+          </div>
+        </div>
+        <div class="receive-qr"><i class="ph-fill ph-qr-code"></i></div>
+        <div style="text-align:center;font-size:var(--fs-xs);color:var(--text-3);font-weight:500;margin-top:calc(-1 * var(--sp-2));margin-bottom:var(--sp-4)">Code EPC · compatible SEPA</div>
+        <div class="bank-row"><span class="bank-lbl">IBAN</span><span class="bank-val mono">FR76 3000 4000 1234 5678</span></div>
+        <div class="bank-row"><span class="bank-lbl">BIC</span><span class="bank-val mono">VTEXBEBB</span></div>
+        <div class="bank-row"><span class="bank-lbl">Banque</span><span class="bank-val">VTEX Finance</span></div>
+        <div class="bank-row"><span class="bank-lbl">Pays</span><span class="bank-val">Belgique</span></div>
+        <button class="btn-ghost-full"><i class="ph-fill ph-copy"></i>Copier le RIB</button>
+        <button class="btn-primary-full"><i class="ph-fill ph-share-network"></i>Partager le RIB</button>
+      </div>
+      <div style="height:20px"></div>
+    </div>
+
+
+    <!-- ============= VIEW · BANQUE ============= -->
+    <div class="view" id="view-banque">
+      <div class="app-header">
+        <button class="btn-round" onclick="showView('accueil')"><i class="ph-bold ph-caret-left"></i></button>
+        <div class="app-header-title">Informations bancaires</div>
+        <button class="btn-round"><i class="ph-bold ph-download-simple"></i></button>
+      </div>
+      <div class="goal-card">
+        <div class="goal-icon-big" style="background:var(--accent-primary);color:var(--ink-hi)"><i class="ph-fill ph-bank"></i></div>
+        <div class="goal-body">
+          <div class="goal-name">VTEX Finance</div>
+          <div class="goal-sub">Bruxelles · Membre FBF</div>
+        </div>
+      </div>
+      <div class="group-lbl">Identité du compte</div>
+      <div class="list">
+        <div class="list-row"><div class="list-icon tint-primary"><i class="ph-fill ph-user"></i></div><div class="list-body"><div class="list-title">Titulaire</div><div class="list-sub">Alex Kaba</div></div></div>
+        <div class="list-row"><div class="list-icon tint-gold"><i class="ph-fill ph-currency-eur"></i></div><div class="list-body"><div class="list-title">Devise</div><div class="list-sub">EUR · Zone euro</div></div></div>
+      </div>
+      <div class="group-lbl">Coordonnées bancaires</div>
+      <div class="list">
+        <div class="list-row"><div class="list-body"><div class="list-sub" style="text-transform:uppercase;letter-spacing:.12em;font-size:9.5px">IBAN</div><div class="list-title mono" style="margin-top:4px;font-weight:700">FR76 3000 4000 1234 5678 9012 345</div></div><div class="list-aside"><button class="btn-round" style="width:36px;height:36px;font-size:16px"><i class="ph-fill ph-copy"></i></button></div></div>
+        <div class="list-row"><div class="list-body"><div class="list-sub" style="text-transform:uppercase;letter-spacing:.12em;font-size:9.5px">BIC / SWIFT</div><div class="list-title mono" style="margin-top:4px;font-weight:700">VTEXBEBB</div></div><div class="list-aside"><button class="btn-round" style="width:36px;height:36px;font-size:16px"><i class="ph-fill ph-copy"></i></button></div></div>
+      </div>
+      <div class="bank-grid">
+        <div class="bank-tile"><div class="bank-tile-lbl">Zone</div><div class="bank-tile-val">SEPA</div></div>
+        <div class="bank-tile"><div class="bank-tile-lbl">Domiciliation</div><div class="bank-tile-val">Bruxelles, BE</div></div>
+      </div>
+      <button class="btn-primary-full" onclick="showView('recevoir')"><i class="ph-fill ph-qr-code"></i>Afficher le QR</button>
+      <div style="height:20px"></div>
+    </div>
+
+  </div>
+
+  <nav class="tabbar">
+    <button class="tab" data-tab="cartes" onclick="showView('cartes')"><i class="ph ph-credit-card" data-name="ph-credit-card"></i><span class="tab-label">Cartes</span></button>
+    <button class="tab" data-tab="historique" onclick="showView('historique')"><i class="ph ph-clock-counter-clockwise" data-name="ph-clock-counter-clockwise"></i><span class="tab-label">Historique</span></button>
+    <button class="tab active" data-tab="accueil" onclick="showView('accueil')"><i class="ph-fill ph-house" data-name="ph-house"></i><span class="tab-label">Home</span></button>
+    <button class="tab" data-tab="notifications" onclick="showView('notifications')"><i class="ph ph-bell" data-name="ph-bell"></i><span class="tab-label">Alertes</span></button>
+    <button class="tab" data-tab="profil" onclick="showView('profil')"><i class="ph ph-user" data-name="ph-user"></i><span class="tab-label">Profil</span></button>
+  </nav>
+</div>
+
+<!-- =========================================================
+     GLOBALES ATTENDUES PAR vtex3d.js
+     ========================================================= -->
+<script>
+  // Format € (utilisé par vtex3d.js pour l'embossage du solde)
+  function fmtEUR(n){
+    var v = Number(n)||0;
+    return v.toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2}) + " €";
+  }
+  window.fmtEUR = fmtEUR;
+
+  // CARDS — structure attendue par vtex3d.js (voir makeVtexCardTexture)
+  var CARDS = [
+    { type:"physique", label:"Mastercard physique", network:"mastercard",
+      num:"4923 4192 5540 4417", holder:"ALEX KABA", expiry:"09/28",
+      balance:2140.00, frozen:false },
+    { type:"physique", label:"VISA physique", network:"visa",
+      num:"5188 3320 8801 2201", holder:"ALEX KABA", expiry:"11/27",
+      balance:1620.50, frozen:false },
+    { type:"virtuelle", label:"Carte virtuelle", network:"visa",
+      num:"3742 5590 6104 8890", holder:"ALEX KABA", expiry:"03/29",
+      balance:525.50, frozen:false }
+  ];
+  window.CARDS = CARDS;
+
+  var activeCardIndex = 0;
+  window.activeCardIndex = activeCardIndex;
+
+  // Fonction hôte que vtex3d.js enrobe (elle est appelée quand l'utilisateur change de carte)
+  function goToCard(i){
+    activeCardIndex = Math.max(0, Math.min(CARDS.length-1, i|0));
+    window.activeCardIndex = activeCardIndex;
+  }
+  window.goToCard = goToCard;
+
+  // Navigation entre vues
+  var TAB_MAP = { accueil:'accueil', cartes:'cartes', historique:'historique', notifications:'notifications', profil:'profil' };
+  function showView(name){
+    document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active') });
+    var el = document.getElementById('view-'+name);
+    if(el){ el.classList.add('active') }
+    var vp = document.getElementById('app-viewport');
+    if(vp){ vp.scrollTop = 0 }
+    document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active') });
+    var tk = TAB_MAP[name] || 'accueil';
+    var tabEl = document.querySelector('.tab[data-tab="'+tk+'"]');
+    if(tabEl){ tabEl.classList.add('active') }
+    // A2 : active = ph-fill (silhouette), inactives = ph (regular outlined)
+    document.querySelectorAll('.tab').forEach(function(t){
+      var ic = t.querySelector('i[data-name]');
+      if(!ic) return;
+      var nm = ic.getAttribute('data-name');
+      if(t.classList.contains('active')){ ic.className = 'ph-fill ' + nm; }
+      else { ic.className = 'ph ' + nm; }
+      ic.setAttribute('data-name', nm);
+    });
+  }
+  window.showView = showView;
+
+  // Marque le carrousel comme actif dès qu'un canvas est initialisé (masque fallback)
+  document.addEventListener('DOMContentLoaded', function(){
+    var host = document.getElementById('vtx-hero3d');
+    var canvas = document.getElementById('vtx3d-canvas');
+    if(!host || !canvas) return;
+    // Test WebGL — si dispo ET Three.js chargé, on masque le fallback
+    var hasGL = (function(){ try{ var c=document.createElement('canvas'); return !!(c.getContext('webgl2')||c.getContext('webgl')); }catch(e){return false} })();
+    if(hasGL && typeof THREE !== 'undefined'){
+      host.classList.add('three-active');
+    }
+  });
+</script>
+
+<!-- vtex3d.js EMBARQUÉ VERBATIM depuis apps/wallet/vtex3d.js -->
+<script>
+/* =============================================================================
+   VTEX — Carrousel de cartes en VRAIE 3D (Three.js), intégré au portefeuille réel.
+   • Identité VTEX conservée : cartes navy VTEX, puce or, marque VTEX, € — le fond
+     split ivoire/navy et le halo de VTEX transparaissent (canvas TRANSPARENT).
+   • Mécanique calquée sur la vidéo : cartes posées/raccourcies, rotation coverflow,
+     recul + rétrécissement en profondeur, ombre de contact sur la surface.
+   • Ressort amorti unique + boucle WebGL -> stable et fluide.
+   Dépend de l'app : globales CARDS, fmtEUR, activeCardIndex, goToCard.
+   ============================================================================= */
+(function(){
+  "use strict";
+  if (typeof THREE === "undefined"){ console.warn("[vtex3d] Three.js absent"); return; }
+  var motionQuery = matchMedia("(prefers-reduced-motion: reduce)");
+  var reduce = motionQuery.matches;
+
+  /* ------------------------- Texture face carte (VTEX) ------------------------ */
+  function roundRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);
+    c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+
+  function eurStr(v){
+    try{ if (typeof fmtEUR==="function") return fmtEUR(v); }catch(e){}
+    return v.toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
+  }
+
+  function makeVtexCardTexture(card){
+    var W=1792, H=Math.round(W/1.586);
+    var cv=document.createElement("canvas"); cv.width=W; cv.height=H;
+    var c=cv.getContext("2d");
+    var S=W/1024;                                   // facteur d'échelle (base 1024)
+    function px(v){ return v*S; }
+    // fond navy VTEX (150deg)
+    var g=c.createLinearGradient(0,0,W*0.9,H);
+    g.addColorStop(0,"#171d3c"); g.addColorStop(.32,"#191a33"); g.addColorStop(.6,"#10132a"); g.addColorStop(1,"#090b1a");
+    c.fillStyle=g; c.fillRect(0,0,W,H);
+    // guilloché de sécurité (fines lignes d'interférence) — bas de carte, très discret
+    c.save(); c.globalAlpha=.05; c.strokeStyle="#8fa2ff"; c.lineWidth=1;
+    for(var gl=0;gl<26;gl++){ c.beginPath();
+      for(var gx=0;gx<=W;gx+=8){ var yy=H*0.60 + gl*px(7) + Math.sin(gx*0.010 + gl*0.5)*px(9) + Math.sin(gx*0.004)*px(15);
+        if(gx===0)c.moveTo(gx,yy); else c.lineTo(gx,yy);} c.stroke(); }
+    c.restore();
+    // reflet doux haut-gauche
+    var hl=c.createRadialGradient(W*.2,H*.08,10,W*.2,H*.08,W*.55);
+    hl.addColorStop(0,"rgba(255,255,255,.16)"); hl.addColorStop(.22,"rgba(255,255,255,.05)"); hl.addColorStop(.5,"rgba(255,255,255,0)");
+    c.fillStyle=hl; c.fillRect(0,0,W,H);
+    // halos accent VTEX
+    function bloom(x,y,r,a){var rg=c.createRadialGradient(x,y,4,x,y,r);rg.addColorStop(0,"rgba(122,162,255,"+a+")");rg.addColorStop(1,"rgba(122,162,255,0)");c.fillStyle=rg;c.fillRect(0,0,W,H);}
+    bloom(W*0.92,H*0.04,W*0.5,0.13); bloom(W*-0.04,H*1.04,W*0.5,0.09);
+    // bande de brossé (sheen) diagonale
+    c.save(); c.translate(W*0.5,H*0.5); c.rotate(-0.52);
+    var sh=c.createLinearGradient(0,-px(70),0,px(70)); sh.addColorStop(0,"rgba(255,255,255,0)"); sh.addColorStop(.5,"rgba(255,255,255,.05)"); sh.addColorStop(1,"rgba(255,255,255,0)");
+    c.fillStyle=sh; c.fillRect(-W,-px(70),2*W,px(140)); c.restore();
+
+    var pad=px(64);
+    function emboss(txt,x,y,font,fill,align){ c.font=font; c.textAlign=align||"left"; c.textBaseline="alphabetic";
+      c.fillStyle="rgba(0,0,0,.45)"; c.fillText(txt,x,y+px(1.5)); c.fillStyle=fill; c.fillText(txt,x,y); c.textAlign="left"; }
+
+    // type tag (haut-gauche)
+    c.textBaseline="top";
+    c.fillStyle="rgba(230,236,255,.42)"; c.font="700 "+px(22)+"px Inter,Arial,sans-serif";
+    c.fillText(String(card.type||"").toUpperCase().split("").join("\u2009"), pad, pad-px(8));
+    // marque VTEX + chevron (haut-droite)
+    c.save(); c.textAlign="right"; c.textBaseline="alphabetic";
+    c.fillStyle="rgba(232,238,255,.6)"; c.font="700 "+px(27)+"px ui-monospace,'JetBrains Mono',monospace";
+    c.fillText("V T E X", W-pad, pad+px(18));
+    // petit chevron
+    c.strokeStyle="rgba(150,178,255,.7)"; c.lineWidth=px(3); c.lineJoin="round"; c.lineCap="round";
+    var cxv=W-pad-px(132), cyv=pad+px(6);
+    c.beginPath(); c.moveTo(cxv,cyv); c.lineTo(cxv+px(9),cyv+px(11)); c.lineTo(cxv+px(18),cyv); c.stroke();
+    c.restore();
+
+    // libellé + solde (embossé)
+    c.textBaseline="top";
+    c.fillStyle="rgba(228,234,255,.92)"; c.font="700 "+px(21)+"px Inter,Arial,sans-serif";
+    c.fillText((card.frozen?"CARTE GELÉE":"SOLDE DISPONIBLE · "+(card.label||"")).toUpperCase(), pad, H*0.19);
+    emboss(eurStr(card.balance), pad, H*0.245+px(60), "700 "+px(66)+"px ui-monospace,'JetBrains Mono',monospace", "#fdfeff");
+
+    // puce EMV or (affinée) + sans-contact
+    var chx=pad, chy=H*0.5, chw=px(108), chh=px(84);
+    var cg=c.createLinearGradient(chx,chy,chx+chw*0.5,chy+chh);
+    cg.addColorStop(0,"#fbeecb"); cg.addColorStop(.4,"#e2c98a"); cg.addColorStop(.72,"#c9a24f"); cg.addColorStop(1,"#9c7a34");
+    c.fillStyle=cg; roundRect(c,chx,chy,chw,chh,px(15)); c.fill();
+    c.strokeStyle="rgba(120,90,30,.5)"; c.lineWidth=px(2.4);
+    c.beginPath(); c.moveTo(chx+chw*.34,chy); c.lineTo(chx+chw*.34,chy+chh);
+    c.moveTo(chx+chw*.66,chy); c.lineTo(chx+chw*.66,chy+chh);
+    c.moveTo(chx,chy+chh*.5); c.lineTo(chx+chw,chy+chh*.5); c.stroke();
+    c.strokeRect(chx+chw*.34,chy+chh*.30,chw*.32,chh*.40);
+    // liseré clair sur la puce
+    c.strokeStyle="rgba(255,255,255,.5)"; c.lineWidth=px(1); roundRect(c,chx+px(1),chy+px(1),chw-px(2),chh-px(2),px(14)); c.stroke();
+    // sans-contact
+    c.strokeStyle="rgba(232,238,255,.45)"; c.lineWidth=px(3.4); c.lineCap="round";
+    var wx=chx+chw+px(30), wy=chy+chh*0.5;
+    for(var wr=0;wr<3;wr++){ c.beginPath(); c.arc(wx, wy, px(12)+wr*px(11), -Math.PI*0.32, Math.PI*0.32); c.stroke(); }
+
+    // réseau
+    if(String(card.network)==="visa"){
+      c.save(); c.textAlign="right"; c.textBaseline="alphabetic";
+      c.fillStyle="#ffffff"; c.font="italic 800 "+px(56)+"px Inter,Arial,sans-serif";
+      c.fillText("VISA", W-pad, chy+chh*0.7); c.restore();
+    } else {
+      var mx=W-pad-px(150), my=chy+chh*0.5;
+      c.fillStyle="#EB001B"; c.beginPath(); c.arc(mx,my,px(40),0,7); c.fill();
+      c.globalCompositeOperation="screen";
+      c.fillStyle="#F79E1B"; c.beginPath(); c.arc(mx+px(46),my,px(40),0,7); c.fill();
+      c.globalCompositeOperation="source-over";
+    }
+
+    // numéro (embossé)
+    emboss(card.num||"", pad, H*0.72+px(30), "600 "+px(41)+"px ui-monospace,'JetBrains Mono',monospace", "rgba(236,241,255,.9)");
+
+    // footer
+    c.textBaseline="top";
+    c.fillStyle="rgba(216,223,248,.74)"; c.font="700 "+px(16)+"px Inter,Arial,sans-serif";
+    c.fillText("TITULAIRE", pad, H-px(94)); c.textAlign="right"; c.fillText("EXPIRE", W-pad, H-px(94)); c.textAlign="left";
+    emboss(card.holder||"", pad, H-px(40), "600 "+px(27)+"px Inter,Arial,sans-serif", "rgba(242,246,255,.92)");
+    c.save(); c.textAlign="right"; emboss(card.expiry||"", W-pad, H-px(40), "600 "+px(27)+"px Inter,Arial,sans-serif", "rgba(242,246,255,.92)","right"); c.restore();
+
+    // filigrane V
+    c.save(); c.translate(W-px(150),H-px(150)); c.rotate(-14*Math.PI/180);
+    c.strokeStyle="rgba(122,162,255,.09)"; c.lineWidth=px(10); c.lineJoin="round";
+    c.beginPath(); c.moveTo(0,0); c.lineTo(px(70),px(120)); c.lineTo(px(140),0); c.stroke(); c.restore();
+
+    // traitement GIVRÉ pour carte gelée
+    if(card.frozen){
+      c.fillStyle="rgba(196,218,255,.14)"; c.fillRect(0,0,W,H);
+      c.strokeStyle="rgba(232,242,255,.13)"; c.lineWidth=px(1.4);
+      for(var fk=0;fk<10;fk++){ var fx=(fk*137)%W, fy=(fk*211)%H;
+        c.beginPath(); for(var a=0;a<6;a++){ var an=a*Math.PI/3; c.moveTo(fx,fy); c.lineTo(fx+Math.cos(an)*px(26), fy+Math.sin(an)*px(26)); } c.stroke(); }
+      c.fillStyle="rgba(150,178,255,.18)"; roundRect(c,W-px(250),H*0.19,px(186),px(46),px(23)); c.fill();
+    }
+
+    // grain film très fin (1-2%) -> casse le banding sur écrans large gamut
+    c.save(); c.globalAlpha=0.025;
+    for(var gi=0; gi<5200; gi++){ c.fillStyle = (gi%2? "#ffffff":"#000000"); c.fillRect((Math.random()*W)|0,(Math.random()*H)|0,1,1); }
+    c.restore();
+    var tex=new THREE.CanvasTexture(cv);
+    tex.anisotropy=16; if("colorSpace" in tex) tex.colorSpace=THREE.SRGBColorSpace; tex.needsUpdate=true;
+    return tex;
+  }
+
+  /* ----------------------------- Géométrie carte ------------------------------ */
+  var CARD_W=1.586, CARD_H=1.0;
+  function shape(w,h,r){var s=new THREE.Shape(),x=-w/2,y=-h/2;s.moveTo(x+r,y);s.lineTo(x+w-r,y);
+    s.quadraticCurveTo(x+w,y,x+w,y+r);s.lineTo(x+w,y+h-r);s.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    s.lineTo(x+r,y+h);s.quadraticCurveTo(x,y+h,x,y+h-r);s.lineTo(x,y+r);s.quadraticCurveTo(x,y,x+r,y);return s;}
+  function makeGeometry(){
+    var geo=new THREE.ExtrudeGeometry(shape(CARD_W,CARD_H,0.1),
+      {depth:0.06,bevelEnabled:true,bevelThickness:0.026,bevelSize:0.024,bevelSegments:8,curveSegments:32});
+    geo.center(); geo.computeBoundingBox();
+    var bb=geo.boundingBox,sx=bb.max.x-bb.min.x,sy=bb.max.y-bb.min.y,uv=geo.attributes.uv,pos=geo.attributes.position;
+    for(var i=0;i<uv.count;i++) uv.setXY(i,(pos.getX(i)-bb.min.x)/sx,(pos.getY(i)-bb.min.y)/sy);
+    uv.needsUpdate=true; return geo;
+  }
+
+  /* --------------------------------- Scène ------------------------------------ */
+  var canvas=document.getElementById("vtx3d-canvas");
+  var host=document.getElementById("vtx-hero3d");
+  if(!canvas||!host||typeof CARDS==="undefined"){ console.warn("[vtex3d] cible absente"); return; }
+
+  var renderer;
+  try{ renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true,alpha:true,powerPreference:"default",stencil:false,depth:true}); }
+  catch(e){ console.warn("[vtex3d] WebGL indisponible, carrousel 3D ignoré",e); return; }
+  renderer.setClearColor(0x000000,0);                    // TRANSPARENT -> fond VTEX visible
+  // Stabilité : perte de contexte WebGL (mobile sous pression mémoire) -> on empêche le comportement
+  // par défaut (canvas mort) et on met la boucle en pause ; on relance à la restauration.
+  var _ctxLost=false;
+  canvas.addEventListener("webglcontextlost", function(ev){ ev.preventDefault(); _ctxLost=true; if(raf){ cancelAnimationFrame(raf); raf=0; } }, false);
+  canvas.addEventListener("webglcontextrestored", function(){ _ctxLost=false; try{ resize(); }catch(_){} lastT=performance.now(); acc=0; if(!raf){ raf=requestAnimationFrame(tick); } }, false);
+  if("outputColorSpace" in renderer) renderer.outputColorSpace=THREE.SRGBColorSpace;
+
+  var scene=new THREE.Scene();
+  var camera=new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+  var LOOK_Y=1.50;                                       // hauteur visée (position verticale carte)
+  camera.position.set(0,1.35,7.5); camera.lookAt(0,LOOK_Y,0);
+
+  // Lumières calées pour cartes navy posées sur l'ivoire : douces, lisibles.
+  var key=new THREE.DirectionalLight(0xf3f6ff,1.6);      // clé dominante, fraîche (DA périwinkle)
+  key.position.set(1.8,5.4,3.6); scene.add(key);
+  scene.add(new THREE.AmbientLight(0xdfe6ff,0.55));      // ambiante = simple débouchage (ratio ~3:1)
+  var fill=new THREE.DirectionalLight(0xbcd0ff,0.4); fill.position.set(-3,1.4,2); scene.add(fill);
+  var rim=new THREE.DirectionalLight(0x9db2ff,0.5); rim.position.set(0,2.4,-4); scene.add(rim);
+  var bevelRim=new THREE.DirectionalLight(0xffffff,0.75); bevelRim.position.set(-2.4,0.9,4.6); scene.add(bevelRim); // accroche le nouveau chanfrein
+
+  // Environnement de reflets (studio dégradé) via PMREM -> vrais reflets métalliques
+  // qui glissent sur la carte quand elle tourne. Le gros saut "premium".
+  try{
+    // HDRI synthétique : plusieurs sources (softbox zénithal, strip droit, rebond chaud, fond neutre)
+    var ecv=document.createElement("canvas"); ecv.width=1024; ecv.height=512; var ec=ecv.getContext("2d");
+    var eg=ec.createLinearGradient(0,0,0,512);
+    eg.addColorStop(0,"#c8d2f0"); eg.addColorStop(.42,"#7f8bbd"); eg.addColorStop(.56,"#2c3360"); eg.addColorStop(1,"#070912");
+    ec.fillStyle=eg; ec.fillRect(0,0,1024,512);
+    function soft(x,y,rx,ry,col){ ec.save(); ec.translate(x,y); ec.scale(rx,ry);
+      var rg=ec.createRadialGradient(0,0,2,0,0,1); rg.addColorStop(0,col); rg.addColorStop(1,"rgba(255,255,255,0)");
+      ec.fillStyle=rg; ec.beginPath(); ec.arc(0,0,1,0,7); ec.fill(); ec.restore(); }
+    soft(430,120,360,150,"rgba(255,255,255,.95)");     // softbox zénithal large & doux
+    soft(900,250,70,240,"rgba(240,246,255,.85)");      // strip vertical fin à droite
+    soft(150,470,300,150,"rgba(196,210,255,.5)");      // rebond périwinkle bas-gauche
+    soft(560,300,240,120,"rgba(150,170,255,.28)");     // remplissage froid central
+    var eqt=new THREE.CanvasTexture(ecv); eqt.mapping=THREE.EquirectangularReflectionMapping; eqt.needsUpdate=true;
+    var pmrem=new THREE.PMREMGenerator(renderer); if(pmrem.compileEquirectangularShader) pmrem.compileEquirectangularShader();
+    scene.environment=pmrem.fromEquirectangular(eqt).texture;
+  }catch(e){ console.warn("[vtex3d] env map indisponible",e); }
+
+  // Ombre de contact "blob" : sprite radial sombre posé à plat sous chaque carte.
+  // Sur canvas transparent, il assombrit le fond VTEX (ivoire/navy) -> vrai contact, jamais masqué.
+  function makeBlobTexture(){
+    var S=256, cv=document.createElement("canvas"); cv.width=cv.height=S; var c=cv.getContext("2d");
+    var g=c.createRadialGradient(S/2,S/2,4,S/2,S/2,S/2);
+    g.addColorStop(0,"rgba(10,12,24,.62)"); g.addColorStop(.42,"rgba(10,12,24,.28)"); g.addColorStop(.72,"rgba(10,12,24,.08)"); g.addColorStop(1,"rgba(10,12,24,0)");
+    c.fillStyle=g; c.fillRect(0,0,S,S);
+    var t=new THREE.CanvasTexture(cv); t.needsUpdate=true; return t;
+  }
+  var BLOB_TEX=makeBlobTexture();
+
+  // Puce EMV : vraie petite géométrie 3D (champ de micro-miroirs) -> scintille indépendamment.
+  function makeChipTexture(){
+    var W=256,H=200,cv=document.createElement("canvas");cv.width=W;cv.height=H;var c=cv.getContext("2d");
+    var g=c.createLinearGradient(0,0,W*0.5,H); g.addColorStop(0,"#fbeecb");g.addColorStop(.4,"#e2c98a");g.addColorStop(.72,"#c9a24f");g.addColorStop(1,"#9c7a34");
+    c.fillStyle=g;c.fillRect(0,0,W,H);
+    c.strokeStyle="rgba(120,90,30,.5)";c.lineWidth=5;
+    c.strokeRect(W*.30,H*.24,W*.40,H*.52);
+    c.beginPath();c.moveTo(W*.30,H*.5);c.lineTo(W*.70,H*.5);
+    c.moveTo(W*.5,H*.24);c.lineTo(W*.5,H*.76);c.stroke();
+    var t=new THREE.CanvasTexture(cv);t.anisotropy=8;if("colorSpace" in t)t.colorSpace=THREE.SRGBColorSpace;t.needsUpdate=true;return t;
+  }
+  var CHIP_GEO=(function(){var gg=new THREE.ExtrudeGeometry(shape(0.168,0.132,0.028),
+      {depth:0.014,bevelEnabled:true,bevelThickness:0.005,bevelSize:0.005,bevelSegments:3,curveSegments:10});
+    gg.center();gg.computeBoundingBox();var bb=gg.boundingBox,sx=bb.max.x-bb.min.x,sy=bb.max.y-bb.min.y,uv=gg.attributes.uv,pos=gg.attributes.position;
+    for(var i=0;i<uv.count;i++)uv.setXY(i,(pos.getX(i)-bb.min.x)/sx,(pos.getY(i)-bb.min.y)/sy);uv.needsUpdate=true;return gg;})();
+  var CHIP_MAT=new THREE.MeshPhysicalMaterial({map:makeChipTexture(),color:0xe8c063,emissive:0x5c4415,emissiveIntensity:0.34,metalness:0.78,roughness:0.28,clearcoat:0.45,clearcoatRoughness:0.2,envMapIntensity:0.8});
+  var CHIP_SIDE=new THREE.MeshPhysicalMaterial({color:0x8a6a2c,emissive:0x241a08,emissiveIntensity:0.14,metalness:0.9,roughness:0.32});
+
+  // Ombre de contact : blob sombre (visible sur ivoire) + blob clair additif (visible sur navy).
+  function makeLightBlob(){
+    var S=256,cv=document.createElement("canvas");cv.width=cv.height=S;var c=cv.getContext("2d");
+    var g=c.createRadialGradient(S/2,S/2,4,S/2,S/2,S/2);
+    g.addColorStop(0,"rgba(150,175,255,.5)");g.addColorStop(.5,"rgba(120,150,255,.16)");g.addColorStop(1,"rgba(120,150,255,0)");
+    c.fillStyle=g;c.fillRect(0,0,S,S);var t=new THREE.CanvasTexture(cv);t.needsUpdate=true;return t;
+  }
+  var LIGHTBLOB_TEX=makeLightBlob();
+
+  // Cartes
+  var geo=makeGeometry();
+  var sideMat=new THREE.MeshPhysicalMaterial({color:0x0a0e1c,emissive:0x2f3f86,emissiveIntensity:0.3,roughness:0.3,metalness:0.72,clearcoat:0.75,clearcoatRoughness:0.26,envMapIntensity:1.0});
+  function buildSceneCard(cd,idx){
+    // Variation subtile de matériaux : chaque carte n'a pas exactement le même traitement.
+    var rough = cd.frozen ? 0.5 : (0.36 + idx*0.02);    // corps : la virtuelle gelée plus mate
+    var metal = cd.frozen ? 0.25 : (0.46 - idx*0.04);   // corps "carte métal"
+    // Double système optique : corps métallique + couche de vernis (clearcoat) -> double reflet.
+    var faceMat=new THREE.MeshPhysicalMaterial({map:makeVtexCardTexture(cd),roughness:rough,metalness:metal,
+      clearcoat:cd.frozen?0.5:0.85, clearcoatRoughness:cd.frozen?0.35:0.18, envMapIntensity:cd.frozen?0.4:0.7});
+    faceMat.transparent=true;
+    var mesh=new THREE.Mesh(geo,[faceMat,sideMat]);
+    var grp=new THREE.Group(); grp.add(mesh); scene.add(grp);
+    // puce 3D, enfant du groupe carte -> suit l'inclinaison et scintille à la rotation
+    var chip=new THREE.Mesh(CHIP_GEO,[CHIP_MAT,CHIP_SIDE]);
+    chip.position.set(-0.611,-0.062,0.066); grp.add(chip);
+    var bmat=new THREE.MeshBasicMaterial({map:BLOB_TEX,transparent:true,depthWrite:false,opacity:0.28});
+    var blob=new THREE.Mesh(new THREE.PlaneGeometry(3.1,2.15), bmat);
+    blob.rotation.x=-Math.PI/2; scene.add(blob);
+    var lbmat=new THREE.MeshBasicMaterial({map:LIGHTBLOB_TEX,transparent:true,depthWrite:false,opacity:0.5,blending:THREE.AdditiveBlending});
+    var lblob=new THREE.Mesh(new THREE.PlaneGeometry(2.6,1.7), lbmat);
+    lblob.rotation.x=-Math.PI/2; scene.add(lblob);
+    return {grp:grp,mesh:mesh,face:faceMat,blob:blob,bmat:bmat,lblob:lblob,lbmat:lbmat};
+  }
+  var cards=CARDS.map(buildSceneCard);
+
+  /* ------------------------------- Carrousel ---------------------------------- */
+  var LEAN=-0.85, GAP=1.55, BASE_Y=1.6, GROUND_Y=1.06;
+  var scroll=0, target=0, vel=0, dragging=false, tSec=0;
+  function clampIdx(i){ return Math.max(0,Math.min(cards.length-1,i)); }
+
+  function layout(t){
+    for(var i=0;i<cards.length;i++){
+      var p=i-scroll, ap=Math.min(2.4,Math.abs(p)), cl=Math.max(-2,Math.min(2,p));
+      // Lévitation : flottement doux et continu, phase propre à chaque carte.
+      var fY = reduce ? 0 : Math.sin(t*0.9 + i*1.7)*0.022;
+      var fRz= reduce ? 0 : Math.sin(t*0.6 + i*2.1)*0.010;
+      var fRx= reduce ? 0 : Math.cos(t*0.7 + i*1.3)*0.008;
+      var g=cards[i].grp;
+      // easing coverflow : courbe en S sur la position latérale (cartes qui "rentrent" visuellement)
+      var easedP = p * (1 + Math.abs(p)*0.08);
+      g.position.x = easedP*GAP;
+      // z : carte active avance franchement vers l'objectif
+      g.position.z = ap===0 ? 0.18 : -ap*1.1;
+      g.position.y = BASE_Y + ap*0.04 + fY;
+      g.rotation.x = LEAN + fRx;
+      // rotation coverflow plus prononcée + amortie sur la carte en cours de swipe
+      g.rotation.y = cl*-0.52;
+      g.rotation.z = fRz;
+      // scale : la carte active est vraiment plus grande
+      g.scale.setScalar(1 - ap*0.10);
+      cards[i].face.opacity = 1 - Math.min(1, ap*0.50);
+      cards[i].mesh.visible = ap<2.35;
+      // Ombre de contact : plus diffuse, plus basse, plus large -> lévitation.
+      var b=cards[i].blob;
+      b.position.set(p*GAP, GROUND_Y+0.002, -ap*1.2);
+      b.scale.setScalar((1 - ap*0.09) * (1 + fY*0.5));
+      cards[i].bmat.opacity = Math.max(0, 0.28 - ap*0.09);
+      b.visible = ap<2.35;
+      var lb=cards[i].lblob; lb.position.set(p*GAP, GROUND_Y-0.001, -ap*1.2);
+      lb.scale.setScalar((1 - ap*0.09)); cards[i].lbmat.opacity = Math.max(0, 0.5 - ap*0.2); lb.visible = ap<2.35;
+    }
+  }
+
+  /* --------------------------- Cadrage responsive ----------------------------- */
+  function frameToWidth(){
+    var W=canvas.clientWidth||360, H=canvas.clientHeight||300;
+    camera.aspect=W/H;
+    var vfov=camera.fov*Math.PI/180;
+    var hfov=2*Math.atan(Math.tan(vfov/2)*camera.aspect);
+    var dist=(CARD_W/0.86/2)/Math.tan(hfov/2);
+    dist=Math.max(3.6,Math.min(12,dist));
+    camera.position.set(0,1.35,dist);
+    camera.lookAt(0,LOOK_Y,0);
+    camera.updateProjectionMatrix();
+  }
+
+  /* ---------------------------- UI synchronisée ------------------------------- */
+  var elSub=document.getElementById("vtx-hero-sub");
+  var elAmt=document.getElementById("vtx-hero-amt");
+  var elPillNm=document.getElementById("vtx-pill-nm");
+  var dotsWrap=document.getElementById("vtx3d-dots");
+  var lastIdx=-1;
+  function renderDots(){
+    if(!dotsWrap) return;
+    dotsWrap.innerHTML=CARDS.map(function(_,i){return '<button type="button" class="vtx3d-dot'+(i===0?' on':'')+'" data-i="'+i+'" aria-label="Afficher la carte '+(i+1)+'" aria-pressed="'+(i===0?'true':'false')+'"></button>';}).join("");
+    dotsWrap.querySelectorAll(".vtx3d-dot").forEach(function(d){ d.addEventListener("click",function(){ var i=+d.dataset.i; go(i); if(typeof window.goToCard==="function") window.goToCard(i); }); });
+  }
+  renderDots();
+  function captionFor(cd){ return (cd.frozen?"Carte gelée":"Solde disponible")+" \u00b7 "+(cd.label||""); }
+  function syncUI(idx){
+    if(idx===lastIdx) return; lastIdx=idx;
+    var cd=CARDS[idx]; if(!cd) return;
+    // Fondu enchaîné doux via transition CSS d'opacité (aucun reflow forcé, aucun setTimeout).
+    if(elSub){ elSub.style.opacity="0"; requestAnimationFrame(function(){ elSub.textContent=captionFor(cd); elSub.style.opacity="1"; }); }
+    if(elAmt){ elAmt.style.opacity="0"; requestAnimationFrame(function(){ elAmt.textContent=eurStr(cd.balance); elAmt.style.opacity="1"; }); }
+    if(elPillNm){ elPillNm.textContent=cd.label; }
+    if(dotsWrap) dotsWrap.querySelectorAll(".vtx3d-dot").forEach(function(d,i){ d.classList.toggle("on",i===idx); d.setAttribute("aria-pressed", i===idx ? "true" : "false"); });
+    if(navigator.vibrate) navigator.vibrate(6);
+  }
+
+  /* ------------------------------- Interaction -------------------------------- */
+  function go(i){
+    target=clampIdx(i);
+    // Les commandes discrètes (clavier, boutons, points) publient leur état
+    // immédiatement. Le ressort continue d’animer le canvas, mais les libellés
+    // et états ARIA ne dépendent plus d’une frame WebGL disponible.
+    if(!dragging) syncUI(target);
+  }
+  var hit=document.getElementById("vtx3d-hit");
+  function syncDesktopControlIcons(){
+    var desktop=matchMedia("(min-width: 1024px)").matches;
+    var controls=document.querySelectorAll(".vtx3d-control-icon");
+    if(controls[0]) controls[0].className=desktop ? "vtx3d-control-icon ri-arrow-left-line" : "vtx3d-control-icon";
+    if(controls[1]) controls[1].className=desktop ? "vtx3d-control-icon ri-arrow-right-line" : "vtx3d-control-icon";
+  }
+  syncDesktopControlIcons();
+  if(motionQuery.addEventListener){ motionQuery.addEventListener("change",function(event){ reduce=event.matches; if(reduce){ scroll=target; vel=0; } }); }
+  function stepPx(){ return ((hit&&hit.clientWidth)||360)*0.52; }
+  var startX=0,startY=0,startScroll=0,lastMoveT=0,lastMoveScroll=0,moved=false;
+  var intentDecided=false,intentHoriz=false; // détection d'intention : horizontal=carrousel, vertical=scroll page
+  // Hint CTA : disparaît au premier swipe ou tap sur une autre carte
+  var _hint=document.getElementById("vtx-swipe-hint"), _hintGone=false;
+  function dismissHint(){ if(_hintGone||!_hint)return; _hintGone=true; _hint.classList.add("gone");
+    setTimeout(function(){ if(_hint)_hint.style.display="none"; }, 700); }
+  if(hit){
+    hit.tabIndex=0; hit.setAttribute("role","region"); hit.setAttribute("aria-label","Carrousel de cartes. Utilisez les flèches gauche et droite pour changer de carte.");
+    hit.addEventListener("pointerdown",function(e){
+      dragging=true; moved=false; intentDecided=false; intentHoriz=false;
+      startX=e.clientX; startY=e.clientY; startScroll=scroll;
+      lastMoveT=performance.now(); lastMoveScroll=scroll; vel=0;
+      try{ hit.setPointerCapture(e.pointerId); }catch(_){}
+    });
+    window.addEventListener("pointermove",function(e){ if(!dragging)return;
+      var evts=(e.getCoalescedEvents && e.getCoalescedEvents().length) ? e.getCoalescedEvents() : [e];
+      var ev=evts[evts.length-1];
+      var dx=ev.clientX-startX, dy=ev.clientY-startY;
+      // Décider l'intention une seule fois (>4px dans une direction)
+      if(!intentDecided && (Math.abs(dx)>4 || Math.abs(dy)>4)){
+        intentDecided=true;
+        intentHoriz=Math.abs(dx)>Math.abs(dy)*0.8; // 0.8 -> bias léger vers horiz
+      }
+      // Scroll vertical -> on abandonne le drag, la page scrolle normalement
+      if(intentDecided && !intentHoriz){ dragging=false; vel=0; scroll=target; return; }
+      // Pas encore décidé ou horizontal -> carrousel prend la main
+      if(Math.abs(dx)>2){ moved=true; dismissHint(); }
+      var n=cards.length-1, p=startScroll - dx/stepPx();
+      if(p<0){ var ov=-p; p=-Math.pow(ov,0.68)*0.55; }
+      else if(p>n){ var ov2=p-n; p=n+Math.pow(ov2,0.68)*0.55; }
+      var now=performance.now(), dtS=Math.max(0.001,(now-lastMoveT)/1000);
+      var inst=(p-lastMoveScroll)/dtS;
+      vel = vel*0.60 + inst*0.40;
+      scroll=p; lastMoveT=now; lastMoveScroll=p;
+    },{passive:true});
+    var release=function(e){ if(!dragging)return; dragging=false;
+      // --- TAP (pas de drag) : clic sur une carte inactive -> y aller directement ---
+      if(!moved && e){
+        var hitRect=hit.getBoundingClientRect();
+        var tapX=e.clientX - hitRect.left - hitRect.width/2; // centré sur le canvas
+        var step=stepPx();
+        // trouver la carte dont la position projetée est la plus proche du tap
+        var best=-1, bestDist=Infinity;
+        for(var ci=0;ci<cards.length;ci++){
+          var cardScreenX=(ci - scroll)*step;
+          var dist=Math.abs(tapX - cardScreenX);
+          if(dist<bestDist){ bestDist=dist; best=ci; }
+        }
+        // si la carte trouvée n'est pas la carte courante -> basculer
+        var current=clampIdx(Math.round(scroll));
+        if(best>=0 && best!==current){
+          dismissHint(); var idx=clampIdx(best); target=idx; vel=0;
+          setTimeout(function(){ try{ if(typeof window.goToCard==="function") window.goToCard(idx); }catch(_){} }, 80);
+          return;
+        }
+        // tap sur la carte active : ne rien faire
+        scroll=target; vel=0; return;
+      }
+      // Inertie flick : coeff augmenté + borne dynamique (max ±2 cartes par flick)
+      var cur=clampIdx(Math.round(scroll));
+      var proj=scroll + vel*0.22;
+      var idx=clampIdx(Math.max(cur-2,Math.min(cur+2,Math.round(proj))));
+      go(idx); vel*=0.3;                                      // garder un peu de vélocité pour le ressort
+      // Haptique : feedback différencié selon le changement
+      var changed=(idx!==cur);
+      if(navigator.vibrate) navigator.vibrate(changed ? [8] : [3]);
+      setTimeout(function(){ try{ if(typeof window.goToCard==="function") window.goToCard(idx); }catch(_){} }, 60);
+    };
+    window.addEventListener("pointerup",release);
+    window.addEventListener("pointercancel",release);
+    hit.addEventListener("keydown",function(e){
+      var next=Math.round(target);
+      if(e.key==="ArrowRight") next+=1;
+      else if(e.key==="ArrowLeft") next-=1;
+      else if(e.key==="Home") next=0;
+      else if(e.key==="End") next=cards.length-1;
+      else return;
+      e.preventDefault(); dismissHint(); next=clampIdx(next); go(next); if(window.goToCard)window.goToCard(next);
+    });
+  }
+
+  /* --------------------- Boucle : physique à PAS DE TEMPS FIXE ----------------
+     Intégration déterministe (sub-stepping 240 Hz) découplée du framerate :
+     lisse à 60 comme à 120 Hz, et insensible aux frames sautées -> zéro saccade. */
+  var homeEl=document.getElementById("view-accueil");
+  function homeActive(){ return homeEl && homeEl.classList.contains("active"); }
+  function resize(){
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
+    renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+    frameToWidth();
+  }
+  window.addEventListener("resize",resize);
+  window.addEventListener("resize",syncDesktopControlIcons);
+  var raf=null, lastT=performance.now(), acc=0;
+  // Ressort proche du critique : la carte atteint sa cible sans rebond sec,
+  // y compris après un flick de souris ou une commande clavier répétée.
+  var FIXED=1/360, STIFF=178, DAMP=28;
+  function integrate(dt){
+    acc+=dt; var n=0;
+    while(acc>=FIXED && n<20){
+      if(!dragging){ var a=STIFF*(target-scroll) - DAMP*vel; vel+=a*FIXED; scroll+=vel*FIXED; }
+      acc-=FIXED; n++;
+    }
+    if(acc>FIXED*3) acc=0;                                    // anti-spirale après une pause
+    if(!dragging && Math.abs(target-scroll)<0.0002 && Math.abs(vel)<0.0003){ scroll=target; vel=0; }
+  }
+  function tick(now){
+    var dt=Math.min(0.033,(now-lastT)/1000); lastT=now; tSec+=dt;
+    if(reduce){ scroll=target; vel=0; } else integrate(dt);
+    layout(tSec);
+    if(host) host.classList.toggle("is-transitioning", !reduce && (dragging || Math.abs(target-scroll)>0.002 || Math.abs(vel)>0.008));
+    if(homeActive()){ renderer.render(scene,camera); syncUI(clampIdx(Math.round(scroll))); }
+    raf=requestAnimationFrame(tick);
+  }
+  document.addEventListener("visibilitychange",function(){
+    if(document.hidden){ if(raf){cancelAnimationFrame(raf);raf=null;} }
+    else if(!raf){ lastT=performance.now(); acc=0; raf=requestAnimationFrame(tick); } });
+
+  /* ------------------------- Synchro avec l'app VTEX -------------------------- */
+  // enrobe goToCard : dots app + écran Cartes restent synchronisés
+  var _goto=window.goToCard;
+  window.vtexRefreshCardFaces=function(){ try{ for(var i=0;i<cards.length;i++){ if(cards[i]&&cards[i].face){ var old=cards[i].face.map; cards[i].face.map=makeVtexCardTexture(CARDS[i]); cards[i].face.needsUpdate=true; if(old&&old.dispose)old.dispose(); } } }catch(e){} };
+  window.goToCard=function(i){ var max=(typeof CARDS!=="undefined"?CARDS.length:1)-1; i=Math.max(0,Math.min(max,i));
+    if(typeof _goto==="function") _goto(i);
+    go(typeof activeCardIndex!=="undefined"?activeCardIndex:i);
+  };
+  // relayout en revenant à l'accueil
+  var _show=window.showView;
+  window.showView=function(name){ if(typeof _show==="function") _show(name);
+    if(name==="accueil") requestAnimationFrame(function(){ resize(); }); };
+
+  // API
+  function refreshCards(){
+    cards.forEach(function(item){
+      scene.remove(item.grp); scene.remove(item.blob); scene.remove(item.lblob);
+      if(item.face.map) item.face.map.dispose(); item.mesh.geometry.dispose();
+  });
+    cards=CARDS.map(buildSceneCard);
+    target=scroll=clampIdx(typeof activeCardIndex!=="undefined" ? activeCardIndex : 0); vel=0; lastIdx=-1;
+    renderDots(); resize(); layout(tSec); syncUI(target);
+  }
+  function select(i){ i=clampIdx(i); go(i); if(window.goToCard)window.goToCard(i); }
+  window.vtx3d={ setActive:function(i){ go(i); }, previous:function(){ select(Math.round(target)-1); }, next:function(){ select(Math.round(target)+1); }, refresh:resize, refreshCards:refreshCards };
+
+  resize(); layout(0);
+  raf=requestAnimationFrame(tick);
+})();
+
+</script>
+
+</body>
+</html>

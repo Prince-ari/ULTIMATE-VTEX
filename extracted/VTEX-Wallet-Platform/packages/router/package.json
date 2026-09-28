@@ -1,0 +1,35 @@
+{
+  "name": "@vtex/router",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json && node -e \"require('fs').writeFileSync('dist/package.json', JSON.stringify({type:'commonjs'}))\"",
+    "prepare": "npm run build",
+    "start": "node dist/serve.js",
+    "serve:dev": "tsx src/serve.ts",
+    "db:backfill-banking": "tsx --env-file-if-exists=.env --env-file-if-exists=../core/.env src/backfillBankAccounts.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@trpc/server": "^11.0.0-rc.679",
+    "@vtex/business": "workspace:*",
+    "@vtex/core": "workspace:*",
+    "@vtex/money": "workspace:*",
+    "@vtex/wallet": "workspace:*",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.36.4",
+    "superjson": "^2.2.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@trpc/client": "^11.0.0-rc.679",
+    "@types/node": "^22.18.9",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  }
+}

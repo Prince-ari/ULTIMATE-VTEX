@@ -1,0 +1,43 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vtex-wallet",
+      "runtimeExecutable": "powershell.exe",
+      "runtimeArgs": [
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+        "C:\\Users\\HP\\Desktop\\ariel work\\VTEX-Wallet-Platform\\apps\\wallet\\start-preview.ps1"
+      ],
+      "port": 3002
+    },
+    {
+      "name": "vtex-mock-api",
+      "runtimeExecutable": "C:\\Users\\HP\\Desktop\\ariel work\\VTEX-Wallet-Platform\\.tools\\node\\node.exe",
+      "runtimeArgs": ["C:\\Users\\HP\\Desktop\\ariel work\\VTEX-Wallet-Platform\\mock-api\\server.mjs"],
+      "port": 4000
+    },
+    {
+      "name": "vtex-wallet-static",
+      "runtimeExecutable": "powershell.exe",
+      "runtimeArgs": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "static-server.ps1", "-Port", "3002"],
+      "port": 3002
+    },
+    {
+      "name": "vtex-business",
+      "runtimeExecutable": "C:\\Users\\HP\\Desktop\\ariel work\\VTEX-Wallet-Platform\\.tools\\node\\node.exe",
+      "runtimeArgs": [
+        "C:\\Users\\HP\\Desktop\\ariel work\\VTEX-Wallet-Platform\\apps\\business\\node_modules\\next\\dist\\bin\\next",
+        "start",
+        "C:\\Users\\HP\\Desktop\\ariel work\\VTEX-Wallet-Platform\\apps\\business",
+        "-p", "3001"
+      ],
+      "port": 3001
+    },
+    {
+      "name": "relife-static",
+      "runtimeExecutable": "powershell.exe",
+      "runtimeArgs": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "C:\\Users\\HP\\Desktop\\ariel work\\obys-format-audit\\serve2.ps1"],
+      "port": 8793
+    }
+  ]
+}

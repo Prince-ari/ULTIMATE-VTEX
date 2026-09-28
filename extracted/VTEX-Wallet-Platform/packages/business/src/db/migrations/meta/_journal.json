@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1790182319957,
+      "tag": "0000_curly_red_skull",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1790210422058,
+      "tag": "0001_happy_sister_grimm",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1790211755247,
+      "tag": "0002_open_owl",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1790369657449,
+      "tag": "0003_payment_link_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1790372173319,
+      "tag": "0004_api_keys_v1",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "vtex",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.11.0",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:api": "pnpm --filter @vtex/api exec next dev -p 4000",
+    "dev:dashboard": "pnpm --filter @vtex/dashboard dev",
+    "dev:wallet": "pnpm --filter @vtex/wallet-web dev",
+    "build": "pnpm -r --if-present build",
+    "check": "pnpm typecheck",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test",
+    "test:deployment": "node --test deployment/deployment-config.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

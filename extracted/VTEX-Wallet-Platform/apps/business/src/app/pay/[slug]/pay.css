@@ -1,0 +1,31 @@
+/* Paiement par lien — page publique, même registre « reçu » que la recharge (LEGDAY §14). Les classes de base viennent de topup.css (`.tp`). */
+.tp.pay .stage{grid-template-columns:minmax(0,560px);justify-content:center}
+.tp.pay .page{max-width:560px}
+.tp.pay .bar{margin-bottom:24px}
+
+/* Commerçant : socle plein + nom. Pas de bordure, pas de logo distant (aucune requête vers un domaine tiers). */
+.tp .merchant{display:flex;align-items:center;gap:12px;min-width:0}
+.tp .merchant .socle{background:var(--s-blue);font-size:14px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+.tp .merchant-t{min-width:0;display:flex;flex-direction:column;gap:4px}
+.tp .merchant-t small{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);line-height:1}
+.tp .merchant-t b{font-size:15px;font-weight:800;letter-spacing:-.02em;line-height:1.2;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Montant fixé par le commerçant : jamais modifiable par le payeur, donc présenté comme un total, pas comme un champ. */
+.tp .amount{display:flex;flex-direction:column;gap:12px}
+.tp .amount .big{margin:0}
+.tp .chips{display:flex;gap:8px;flex-wrap:wrap}
+.tp .chip{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:var(--plat-2);color:var(--ink);font-size:12px;font-weight:700;line-height:1}
+.tp .chip svg{color:var(--ink2)}
+
+/* État indisponible : socle rouge encre, ton calme (le payeur n'y est pour rien). */
+.tp .off{display:flex;flex-direction:column;align-items:flex-start;gap:16px}
+.tp .off .socle{width:56px;height:56px;background:var(--g-brick);color:#fff}
+
+.tp .ok-note{margin:0;padding:16px;border-radius:20px;background:var(--tint-positive);font-size:13px;font-weight:500;color:var(--ink2);line-height:1.5}
+.tp .ok-note b{color:var(--ink)}
+
+@media print{
+  .tp.pay{background:#fff;padding:0}
+  .tp.pay .bar,.tp.pay .btns,.tp.pay .legal{display:none}
+  .tp.pay .sheet-wrap{filter:none}
+}

@@ -1,0 +1,62 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1786648568204,
+      "tag": "0000_bright_radioactive_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1786649990115,
+      "tag": "0001_dear_dagger",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1786650776631,
+      "tag": "0002_confused_masque",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1786651022251,
+      "tag": "0003_outstanding_forge",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1790210419665,
+      "tag": "0007_wallet_topups",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1790300000000,
+      "tag": "0008_wallet_topups_refund",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1790400000000,
+      "tag": "0009_repair_pin_permissions_bank_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1790410000000,
+      "tag": "0010_wallet_settings",
+      "breakpoints": true
+    }
+  ]
+}
