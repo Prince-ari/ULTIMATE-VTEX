@@ -1,6 +1,7 @@
 import { createHash, randomBytes, scryptSync } from "node:crypto"
 import { and, asc, desc, eq, gte, sql } from "drizzle-orm"
 import {
+  assertOperatorAccess,
   clearCardSecrets,
   db,
   generatedIban,
@@ -105,7 +106,21 @@ export async function getAccountOrThrow(executor: Executor, accountId: number): 
 async function ownedAccount(executor: Executor, actor: Actor, accountId: number, privilegedRoles: Actor["role"][] = ["admin", "agent"]) {
   const account = await getAccountOrThrow(executor, accountId)
   requireSelfOrRole(actor, account.userId, ...privilegedRoles)
+  // Garde-fou de session d'accès (Sprint 8) : lu sur `db`, pas `executor` — un simple contrôle de permission, jamais une donnée de la transaction elle-même.
+  if (actor.id !== account.userId) await assertOperatorAccess(db, actor, { walletType: "PERSONAL", holderId: account.userId })
   return account
+}
+
+/**
+ * À utiliser à la place de `requireSelfOrRole(actor, ownerId, "admin", "agent")` sur un wallet PERSONAL : même
+ * vérification de rôle, plus le garde-fou de session d'accès (Sprint 8) — si l'appelant a ouvert une session
+ * EN LECTURE SEULE sur CE titulaire précis, la mutation est refusée même si son rôle l'autoriserait normalement.
+ * Un titulaire qui agit sur son propre wallet (`actor.id === ownerId`) n'est jamais concerné : aucune session
+ * n'est vérifiée dans ce cas, le comportement pour un utilisateur normal reste strictement inchangé.
+ */
+async function requireSelfOrStaffAccess(actor: Actor, ownerId: number): Promise<void> {
+  requireSelfOrRole(actor, ownerId, "admin", "agent")
+  if (actor.id !== ownerId) await assertOperatorAccess(db, actor, { walletType: "PERSONAL", holderId: ownerId })
 }
 
 export async function hasWalletPermission(actor: Actor, permission: WalletPermissionName, executor: Executor = db) {
@@ -329,7 +344,7 @@ async function mainBankRef(executor: Executor, account: WalletAccount): Promise<
 }
 export async function provisionBankDetails(actor: Actor, walletAccountId?: number) {
   const account = walletAccountId ? await ownedAccount(db, actor, walletAccountId) : await ensureWalletAccount(actor)
-  requireSelfOrRole(actor, account.userId, "admin", "agent")
+  await requireSelfOrStaffAccess(actor, account.userId)
   const iban = account.iban ?? generatedIban(account.id)
   const bic = account.bic ?? "VTEXFRPPXXX"
   if (actor.id !== account.userId) await requireWalletPermission(actor, "wallet.accounts.manage")
@@ -350,7 +365,7 @@ export async function provisionBankDetails(actor: Actor, walletAccountId?: numbe
 
 export async function updateBankDetails(actor: Actor, input: { walletAccountId: number; iban: string; bic: string; reason: string }) {
   const account = await getAccountOrThrow(db, input.walletAccountId)
-  requireSelfOrRole(actor, account.userId, "admin", "agent")
+  await requireSelfOrStaffAccess(actor, account.userId)
   if (actor.id !== account.userId) await requireWalletPermission(actor, "wallet.accounts.manage")
   if (input.reason.trim().length < 8) throw new ValidationError("Le motif RIB doit contenir au moins huit caractères.")
   const iban = normalizeAndValidateIban(input.iban)
@@ -369,7 +384,7 @@ export async function updateBankDetails(actor: Actor, input: { walletAccountId: 
 
 export async function revokeBankDetails(actor: Actor, input: { walletAccountId: number; reason: string }) {
   const account = await getAccountOrThrow(db, input.walletAccountId)
-  requireSelfOrRole(actor, account.userId, "admin", "agent")
+  await requireSelfOrStaffAccess(actor, account.userId)
   if (actor.id !== account.userId) await requireWalletPermission(actor, "wallet.accounts.manage")
   if (input.reason.trim().length < 8) throw new ValidationError("Le motif de révocation doit contenir au moins huit caractères.")
   await db.transaction(async (tx) => {
@@ -385,7 +400,7 @@ export async function revokeBankDetails(actor: Actor, input: { walletAccountId: 
 
 export async function listBankDetailsHistory(actor: Actor, walletAccountId: number) {
   const account = await getAccountOrThrow(db, walletAccountId)
-  requireSelfOrRole(actor, account.userId, "admin", "agent")
+  await requireSelfOrStaffAccess(actor, account.userId)
   if (actor.id !== account.userId) await requireWalletPermission(actor, "wallet.read")
   return db.select({ id: walletBankDetails.id, walletAccountId: walletBankDetails.walletAccountId, iban: walletBankDetails.iban, bic: walletBankDetails.bic, status: walletBankDetails.status, reason: walletBankDetails.reason, revokedAt: walletBankDetails.revokedAt, createdAt: walletBankDetails.createdAt }).from(walletBankDetails).where(eq(walletBankDetails.walletAccountId, walletAccountId)).orderBy(desc(walletBankDetails.createdAt))
 }
@@ -444,7 +459,7 @@ export async function authorizeCardPayment(actor: Actor, input: { cardId: number
     const replay = await replayOrStart<{ transactionId: number; reference: string; status: string }>(executor, actor, "card_payment", input.idempotencyKey, input)
     if (replay) return { ...replay, replayed: true }
     const { card, account } = await cardWithAccount(input.cardId, executor)
-    requireSelfOrRole(actor, account.userId, "admin", "agent")
+    await requireSelfOrStaffAccess(actor, account.userId)
     const now = new Date()
     const [dailySpent, monthlySpent] = await Promise.all([cardSpendSince(executor, card.id, startOfUtcDay(now)), cardSpendSince(executor, card.id, startOfUtcMonth(now))])
     assertCardPaymentAllowed(account, card, input, { dailySpentCents: dailySpent, monthlySpentCents: monthlySpent }, now)
@@ -477,7 +492,7 @@ export async function authorizeCardPayment(actor: Actor, input: { cardId: number
 
 export async function setCardFrozen(actor: Actor, cardId: number, frozen: boolean): Promise<Card> {
   const { card, account } = await cardWithAccount(cardId)
-  requireSelfOrRole(actor, account.userId, "admin", "agent")
+  await requireSelfOrStaffAccess(actor, account.userId)
   if (card.status === "expired" || card.status === "cancelled") throw new ValidationError("Cette carte ne peut plus être modifiée.")
   await db.update(cards).set({ status: frozen ? "frozen" : "active", updatedAt: new Date() }).where(eq(cards.id, cardId))
   const [updated] = await db.select().from(cards).where(eq(cards.id, cardId)).limit(1)
@@ -489,7 +504,7 @@ export async function setCardFrozen(actor: Actor, cardId: number, frozen: boolea
 
 export async function updateCardControls(actor: Actor, cardId: number, controls: CardControls, limits: CardLimits): Promise<Card> {
   const { account } = await cardWithAccount(cardId)
-  requireSelfOrRole(actor, account.userId, "admin", "agent")
+  await requireSelfOrStaffAccess(actor, account.userId)
   if (actor.id !== account.userId) await requireWalletPermission(actor, "wallet.cards.manage")
   if (Object.keys(limits).length > 0) requireRole(actor, "admin", "agent")
   for (const value of Object.values(limits)) if (value !== undefined) assertPositiveCents(value, "Limite de carte")
@@ -523,7 +538,7 @@ export async function createCard(actor: Actor, input: { walletAccountId: number;
 
 export async function setCardPin(actor: Actor, cardId: number, pin: string) {
   const { card, account } = await cardWithAccount(cardId)
-  requireSelfOrRole(actor, account.userId, "admin", "agent")
+  await requireSelfOrStaffAccess(actor, account.userId)
   if (actor.id !== account.userId) await requireWalletPermission(actor, "wallet.cards.pin")
   if (card.status === "cancelled" || card.status === "expired") throw new ValidationError("Le PIN d’une carte inactive ne peut pas être modifié.")
   const pinHash = hashCardPin(pin, card.tokenReference)
@@ -582,6 +597,7 @@ export async function cancelCard(actor: Actor, cardId: number) {
 export async function createAdminBeneficiary(actor: Actor, input: { walletAccountId: number; fullName: string; nickname?: string; iban: string; bic?: string; internalWalletAccountId?: number | null }) {
   requireRole(actor, "admin")
   const account = await getAccountOrThrow(db, input.walletAccountId)
+  await assertOperatorAccess(db, actor, { walletType: "PERSONAL", holderId: account.userId })
   const iban = normalizeAndValidateIban(input.iban)
   if (input.fullName.trim().length < 2) throw new ValidationError("Le nom du bénéficiaire est requis.")
   if (input.internalWalletAccountId) {
@@ -888,6 +904,7 @@ export async function adjustWalletBalance(actor: Actor, input: { walletAccountId
   requireRole(actor, "admin")
   if (!Number.isSafeInteger(input.deltaCents) || input.deltaCents === 0) throw new ValidationError("L’ajustement doit être un entier non nul.")
   if (input.reason.trim().length < 8) throw new ValidationError("Une justification d’au moins huit caractères est requise.")
+  await assertOperatorAccess(db, actor, { walletType: "PERSONAL", holderId: (await getAccountOrThrow(db, input.walletAccountId)).userId })
 
   return db.transaction(async (tx) => {
     const executor = tx as unknown as Executor
@@ -1139,6 +1156,7 @@ export async function createAdminWallet(actor: Actor, input: { userId: number; c
 export async function updateAdminWalletStatus(actor: Actor, walletAccountId: number, status: WalletAccount["status"]) {
   requireRole(actor, "admin")
   const account = await getAccountOrThrow(db, walletAccountId)
+  await assertOperatorAccess(db, actor, { walletType: "PERSONAL", holderId: account.userId })
   if (account.status === "closed" && status !== "closed") throw new ValidationError("Un compte clôturé ne peut pas être réactivé.")
   if (status === "closed" && (account.availableBalanceCents !== 0 || account.reservedBalanceCents !== 0)) {
     throw new ValidationError("Un compte ne peut être clôturé que lorsque ses soldes disponible et réservé sont nuls.")
@@ -1157,6 +1175,7 @@ export async function emergencyWalletLockdown(actor: Actor, input: { walletAccou
   requireRole(actor, "admin")
   const reason = input.reason.trim()
   if (reason.length < 8) throw new ValidationError("Une justification d’au moins huit caractères est requise.")
+  await assertOperatorAccess(db, actor, { walletType: "PERSONAL", holderId: (await getAccountOrThrow(db, input.walletAccountId)).userId })
 
   return db.transaction(async (tx) => {
     const executor = tx as unknown as Executor

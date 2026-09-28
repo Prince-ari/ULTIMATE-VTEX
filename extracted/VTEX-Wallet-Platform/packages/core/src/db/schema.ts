@@ -128,6 +128,35 @@ export const managerAssignments = mysqlTable("manager_assignments", {
 }))
 
 // ===================================================================
+// 3 ter. support_sessions — accès délégué tracé à un wallet (Sprint 8)
+// ===================================================================
+/**
+ * Un membre de l'équipe (agent/admin/super_admin) déclare explicitement qu'il consulte, ou agit sur, le wallet d'un
+ * titulaire, avec un motif et une durée bornée. `mode` : `read_only` (par défaut) ne permet que la consultation ;
+ * `operator` autorise les mutations existantes (déjà protégées par leurs propres permissions) le temps de la session.
+ * Une seule session active à la fois par membre d'équipe (contrôlé côté service, pas ici). L'historique complet
+ * (démarrage, fin, expiration) vit dans cette table ; chaque action journalisée PENDANT la session porte son
+ * `support_session_id` (colonne déjà présente sur `logs`) — l'acteur journalisé reste TOUJOURS le membre d'équipe
+ * réel, jamais le titulaire : la session ne fait jamais dire au journal qu'un titulaire a agi sur son propre wallet.
+ */
+export const supportSessions = mysqlTable("support_sessions", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  startedBy: bigint("started_by", { mode: "number" }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  walletType: mysqlEnum("wallet_type", ["PERSONAL", "PROFESSIONAL"]).notNull(),
+  holderId: bigint("holder_id", { mode: "number" }).notNull(),
+  mode: mysqlEnum("mode", ["read_only", "operator"]).notNull().default("read_only"),
+  reason: varchar("reason", { length: 250 }).notNull(),
+  startedAt: datetime("started_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  expiresAt: datetime("expires_at").notNull(),
+  endedAt: datetime("ended_at"),
+  endedReason: mysqlEnum("ended_reason", ["manual", "expired", "superseded"]),
+}, (t) => ({
+  starterActiveIdx: index("support_sessions_starter_active_idx").on(t.startedBy, t.endedAt),
+  holderIdx: index("support_sessions_holder_idx").on(t.walletType, t.holderId, t.startedAt),
+}))
+export type SupportSession = typeof supportSessions.$inferSelect
+
+// ===================================================================
 // 4. notification_reads (table complémentaire, cf. Sprint 6 §7)
 // ===================================================================
 export const notificationReads = mysqlTable("notification_reads", {

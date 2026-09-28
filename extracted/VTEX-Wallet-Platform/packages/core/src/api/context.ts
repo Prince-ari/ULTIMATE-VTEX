@@ -8,12 +8,17 @@ import { eq } from "drizzle-orm"
 import { verifySessionToken } from "../auth/session"
 import type { Actor } from "../auth/permissions"
 import type { RequestContext } from "./requestContext"
+import { getMyActiveAccessSession } from "../modules/support/accessSessions"
+import type { SupportSession } from "../db/schema"
 
 export interface Context {
   actor: Actor | null
   jti: string | null
   ip: string
   requestId: string
+  /** Session d'accès active de CET acteur, si elle existe et n'a pas expiré (Sprint 8). Résolue une fois par requête.
+   *  Optionnel : absent (plutôt que `null`) dans les `Context` construits à la main par les tests existants — ne les oblige pas à connaître ce champ. */
+  supportSession?: SupportSession | null
 }
 
 /** La dernière activité n'est réécrite qu'au plus toutes les 5 minutes : une écriture par requête serait coûteuse. */
@@ -55,17 +60,17 @@ async function resolveContext(authHeader: string | undefined, cookieHeader: stri
   const token = authHeader?.startsWith("Bearer ")
     ? authHeader.slice("Bearer ".length)
     : sessionCookie(cookieHeader)
-  if (!token) return { actor: null, jti: null, ip, requestId }
+  if (!token) return { actor: null, jti: null, ip, requestId, supportSession: null }
 
   const verified = await verifySessionToken(db, token)
-  if (!verified) return { actor: null, jti: null, ip, requestId }
+  if (!verified) return { actor: null, jti: null, ip, requestId, supportSession: null }
 
   const [user] = await db.select().from(users).where(eq(users.id, verified.userId)).limit(1)
-  if (!user || user.status !== "active") return { actor: null, jti: null, ip, requestId }
+  if (!user || user.status !== "active") return { actor: null, jti: null, ip, requestId, supportSession: null }
 
   // Mot de passe temporaire expiré : la session n'est plus utilisable tant qu'un administrateur n'a pas réinitialisé le compte.
   if (user.mustChangePassword && user.tempPasswordExpiresAt && user.tempPasswordExpiresAt.getTime() < Date.now()) {
-    return { actor: null, jti: null, ip, requestId }
+    return { actor: null, jti: null, ip, requestId, supportSession: null }
   }
 
   if (!user.lastActiveAt || Date.now() - user.lastActiveAt.getTime() > ACTIVITY_TOUCH_INTERVAL_MS) {
@@ -73,7 +78,10 @@ async function resolveContext(authHeader: string | undefined, cookieHeader: stri
     await db.update(users).set({ lastActiveAt: new Date() }).where(eq(users.id, user.id)).catch(() => undefined)
   }
 
-  return { actor: { id: user.id, role: user.role, mustChangePassword: user.mustChangePassword }, jti: verified.jti, ip, requestId }
+  const actor: Actor = { id: user.id, role: user.role, mustChangePassword: user.mustChangePassword }
+  // Seul un membre d'équipe peut avoir une session d'accès ; épargne une requête inutile pour chaque titulaire de wallet.
+  const supportSession = user.role !== "user" ? await getMyActiveAccessSession(db, actor) : null
+  return { actor, jti: verified.jti, ip, requestId, supportSession }
 }
 
 /**
@@ -111,6 +119,6 @@ export function toRequestContext(context: Context): RequestContext {
     actorRole: context.actor?.role ?? null,
     sessionJti: context.jti,
     ip: context.ip,
-    supportSessionId: null,
+    supportSessionId: context.supportSession?.id ?? null,
   }
 }

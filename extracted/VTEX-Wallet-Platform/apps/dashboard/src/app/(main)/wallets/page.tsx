@@ -27,6 +27,7 @@ type Kpis = Outputs["walletAdmin"]["kpis"]
 type CurrentUser = Outputs["users"]["getMe"]
 type AdminUser = Outputs["users"]["list"][number]
 type Reconciliation = Outputs["walletAdmin"]["reconciliation"]
+type AccessSession = NonNullable<Outputs["accessSessions"]["mine"]>
 
 type WalletStatus = AdminWallet["status"]
 type CardDetail = AdminWalletDetail["cards"][number]
@@ -226,18 +227,82 @@ function WalletDetailConsole({ detail, canOperate, canAdjust, onChanged }: { det
   const { money } = useMoney()
   const wallet = detail.account
   const ownerName = `${detail.owner.firstName} ${detail.owner.lastName}`.trim()
+  const [session, setSession] = React.useState<AccessSession | null>(null)
+  // Lecture seule par défaut (Sprint 8) : agir sur CE wallet exige une session opérateur active, en plus du rôle.
+  // Un titulaire n'a pas de session — non concerné, seul le Dashboard (staff) est protégé par ce garde-fou d'interface.
+  const canWriteOperate = canOperate && session?.mode === "operator"
+  const canWriteAdjust = canAdjust && session?.mode === "operator"
   return <>
-    <DrawerSection title="Titulaire et compte"><DrawerRow label="Titulaire" value={ownerName || `Utilisateur #${detail.owner.id}`} /><DrawerRow label="Email" value={detail.owner.email} /><DrawerRow label="Rôle Core" value={detail.owner.role} /><DrawerRow label="Devise" value={wallet.currency} /><DrawerRow label="Statut" value={<Badge variant={statusVariant(wallet.status)}>{wallet.status}</Badge>} /><DrawerRow label="Disponible" value={money(wallet.availableBalanceCents, wallet.currency)} /><DrawerRow label="Réservé" value={money(wallet.reservedBalanceCents, wallet.currency)} /><DrawerRow label="IBAN" value={wallet.iban ?? "Révoqué / à provisionner"} /><DrawerRow label="BIC" value={wallet.bic ?? "—"} />{canOperate ? <BankDetailsPanel wallet={wallet} onChanged={onChanged} /> : null}</DrawerSection>
+    {canOperate ? <DrawerSection title="Session d’accès"><AccessSessionPanel holderId={detail.owner.id} canStartOperator={canAdjust} session={session} onSessionChange={setSession} /></DrawerSection> : null}
+    <DrawerSection title="Titulaire et compte"><DrawerRow label="Titulaire" value={ownerName || `Utilisateur #${detail.owner.id}`} /><DrawerRow label="Email" value={detail.owner.email} /><DrawerRow label="Rôle Core" value={detail.owner.role} /><DrawerRow label="Devise" value={wallet.currency} /><DrawerRow label="Statut" value={<Badge variant={statusVariant(wallet.status)}>{wallet.status}</Badge>} /><DrawerRow label="Disponible" value={money(wallet.availableBalanceCents, wallet.currency)} /><DrawerRow label="Réservé" value={money(wallet.reservedBalanceCents, wallet.currency)} /><DrawerRow label="IBAN" value={wallet.iban ?? "Révoqué / à provisionner"} /><DrawerRow label="BIC" value={wallet.bic ?? "—"} />{canOperate ? <BankDetailsPanel wallet={wallet} canWrite={canWriteOperate} onChanged={onChanged} /> : null}</DrawerSection>
 
-    {canAdjust ? <><DrawerSection title="Permissions Wallet"><WalletPermissionsPanel userId={wallet.userId} /></DrawerSection><DrawerSection title="Cycle de vie et devise"><AccountStatusControls wallet={wallet} onChanged={onChanged} /><NewCurrencyAccountForm userId={wallet.userId} onChanged={onChanged} /></DrawerSection></> : null}
-    {canAdjust ? <DrawerSection title="Intervention d’urgence"><EmergencyLockdown wallet={wallet} onDone={onChanged} /></DrawerSection> : null}
-    {canAdjust ? <DrawerSection title="Ajustement comptable"><AdjustmentForm wallet={wallet} onDone={onChanged} /></DrawerSection> : null}
-    <DrawerSection title={`Cartes (${detail.cards.length})`}><div className="space-y-3">{detail.cards.map((card) => <CardAdminPanel key={card.id} card={card} currency={wallet.currency} canOperate={canOperate} canAdjust={canAdjust} onChanged={onChanged} />)}{canAdjust ? <CreateCardForm walletAccountId={wallet.id} onDone={onChanged} /> : null}</div></DrawerSection>
-    <DrawerSection title={`Bénéficiaires (${detail.beneficiaries.length})`}><div className="space-y-3">{detail.beneficiaries.map((beneficiary) => <BeneficiaryPanel key={beneficiary.id} beneficiary={beneficiary} canOperate={canOperate} onChanged={onChanged} />)}{canAdjust ? <CreateBeneficiaryForm walletAccountId={wallet.id} onDone={onChanged} /> : null}</div></DrawerSection>
-    <DrawerSection title={`Objectifs d’épargne (${detail.savingsGoals.length})`}><div className="space-y-3">{detail.savingsGoals.map((goal) => <SavingsGoalPanel key={goal.id} goal={goal} canAdjust={canAdjust} onChanged={onChanged} />)}{canAdjust ? <CreateSavingsGoalForm walletAccountId={wallet.id} currency={wallet.currency} onDone={onChanged} /> : null}</div></DrawerSection>
-    {canAdjust ? <DrawerSection title="Opérations Wallet"><TransferConsole wallet={wallet} beneficiaries={detail.beneficiaries} onDone={onChanged} /></DrawerSection> : null}
+    {canAdjust ? <><DrawerSection title="Permissions Wallet"><WalletPermissionsPanel userId={wallet.userId} canWrite={canWriteAdjust} /></DrawerSection><DrawerSection title="Cycle de vie et devise">{canWriteAdjust ? <AccountStatusControls wallet={wallet} onChanged={onChanged} /> : <p className="text-sm text-gray-500">Ouvrez une session opérateur pour modifier le statut du compte.</p>}{canWriteAdjust ? <NewCurrencyAccountForm userId={wallet.userId} onChanged={onChanged} /> : null}</DrawerSection></> : null}
+    {canAdjust ? <DrawerSection title="Intervention d’urgence">{canWriteAdjust ? <EmergencyLockdown wallet={wallet} onDone={onChanged} /> : <p className="text-sm text-gray-500">Ouvrez une session opérateur pour geler ce compte en urgence.</p>}</DrawerSection> : null}
+    {canAdjust ? <DrawerSection title="Ajustement comptable">{canWriteAdjust ? <AdjustmentForm wallet={wallet} onDone={onChanged} /> : <p className="text-sm text-gray-500">Ouvrez une session opérateur pour ajuster ce solde.</p>}</DrawerSection> : null}
+    <DrawerSection title={`Cartes (${detail.cards.length})`}><div className="space-y-3">{detail.cards.map((card) => <CardAdminPanel key={card.id} card={card} currency={wallet.currency} canOperate={canWriteOperate} canAdjust={canWriteAdjust} onChanged={onChanged} />)}{canWriteAdjust ? <CreateCardForm walletAccountId={wallet.id} onDone={onChanged} /> : null}</div></DrawerSection>
+    <DrawerSection title={`Bénéficiaires (${detail.beneficiaries.length})`}><div className="space-y-3">{detail.beneficiaries.map((beneficiary) => <BeneficiaryPanel key={beneficiary.id} beneficiary={beneficiary} canOperate={canWriteOperate} onChanged={onChanged} />)}{canWriteAdjust ? <CreateBeneficiaryForm walletAccountId={wallet.id} onDone={onChanged} /> : null}</div></DrawerSection>
+    <DrawerSection title={`Objectifs d’épargne (${detail.savingsGoals.length})`}><div className="space-y-3">{detail.savingsGoals.map((goal) => <SavingsGoalPanel key={goal.id} goal={goal} canAdjust={canWriteAdjust} onChanged={onChanged} />)}{canWriteAdjust ? <CreateSavingsGoalForm walletAccountId={wallet.id} currency={wallet.currency} onDone={onChanged} /> : null}</div></DrawerSection>
+    {canAdjust ? <DrawerSection title="Opérations Wallet">{canWriteAdjust ? <TransferConsole wallet={wallet} beneficiaries={detail.beneficiaries} onDone={onChanged} /> : <p className="text-sm text-gray-500">Ouvrez une session opérateur pour virer, partager ou créer un ordre externe depuis ce compte.</p>}</DrawerSection> : null}
     <DrawerSection title={`Historique récent (${detail.transactions.length})`}><div className="max-h-64 space-y-2 overflow-auto pr-1">{detail.transactions.length === 0 ? <p className="text-sm text-gray-500">Aucune transaction sur ce compte.</p> : detail.transactions.map((transaction) => <div className="rounded-md border border-gray-200 p-2 text-xs dark:border-gray-800" key={transaction.id}><div className="flex items-center justify-between gap-3"><span className="font-mono">{transaction.reference}</span><Badge variant={statusVariant(transaction.status)}>{transaction.status}</Badge></div><div className="mt-1 flex items-center justify-between text-gray-500"><span>{transaction.type.replaceAll("_", " ")}</span><span>{transaction.direction === "credit" ? "+" : "−"}{money(transaction.amountCents, transaction.currency)}</span></div></div>)}</div></DrawerSection>
   </>
+}
+
+function AccessSessionPanel({ holderId, canStartOperator, session, onSessionChange }: { holderId: number; canStartOperator: boolean; session: AccessSession | null; onSessionChange: (session: AccessSession | null) => void }) {
+  const { show } = useToast()
+  const [reason, setReason] = React.useState("")
+  const [mode, setMode] = React.useState<"read_only" | "operator">("read_only")
+  const [duration, setDuration] = React.useState(20)
+  const [busy, setBusy] = React.useState(false)
+  const [now, setNow] = React.useState(() => Date.now())
+
+  const load = React.useCallback(() => {
+    api.accessSessions.mine.query().then((current) => onSessionChange(current && current.walletType === "PERSONAL" && current.holderId === holderId ? current : null)).catch(() => undefined)
+  }, [holderId, onSessionChange])
+  React.useEffect(() => { void load() }, [load])
+  React.useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id) }, [])
+
+  async function start() {
+    if (reason.trim().length < 8) return show("Le motif doit contenir au moins huit caractères.", "error")
+    setBusy(true)
+    try {
+      const created = await api.accessSessions.start.mutate({ walletType: "PERSONAL", holderId, mode, reason: reason.trim(), durationMinutes: duration })
+      onSessionChange(created); setReason("")
+      show(mode === "operator" ? "Session opérateur ouverte : vous pouvez agir sur ce wallet." : "Session de consultation ouverte.")
+    } catch (error) { show(apiError(error, "Ouverture de session impossible."), "error") } finally { setBusy(false) }
+  }
+  async function end() {
+    if (!session) return
+    setBusy(true)
+    try { await api.accessSessions.end.mutate({ sessionId: session.id }); onSessionChange(null); show("Session terminée.") } catch (error) { show(apiError(error, "Impossible de terminer la session."), "error") } finally { setBusy(false) }
+  }
+
+  if (session) {
+    const remainingMin = Math.max(0, Math.ceil((new Date(session.expiresAt).getTime() - now) / 60_000))
+    return <div className={`rounded-md border p-3 text-sm ${session.mode === "operator" ? "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20" : "border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/20"}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-medium text-gray-900 dark:text-gray-50">{session.mode === "operator" ? "Session opérateur active" : "Session de consultation active"} · expire dans {remainingMin} min</p>
+        <Button variant="secondary" className="h-7 text-xs" disabled={busy} onClick={() => void end()}>Terminer la session</Button>
+      </div>
+      <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">Motif : {session.reason}</p>
+      {session.mode === "read_only" ? <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">Lecture seule : les actions sur ce wallet restent désactivées. Terminez cette session puis ouvrez-en une en mode opérateur pour agir.</p> : null}
+    </div>
+  }
+
+  return <div className="rounded-md border border-dashed border-gray-300 p-3 dark:border-gray-700">
+    <p className="text-sm font-medium text-gray-900 dark:text-gray-50">Ouvrir une session d’accès</p>
+    <p className="mt-1 text-xs text-gray-500">Par défaut ce wallet est en lecture seule. Ouvrez une session, avec un motif, pour le consulter ou — en mode opérateur — agir dessus le temps de dépanner ce titulaire.</p>
+    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
+      <Input aria-label="Motif de la session d’accès" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Motif (ex. le titulaire signale un virement manquant)" />
+      <select aria-label="Mode de la session" className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm dark:border-gray-800 dark:bg-gray-950" value={mode} onChange={(event) => setMode(event.target.value as "read_only" | "operator")}>
+        <option value="read_only">Lecture seule</option>
+        {canStartOperator ? <option value="operator">Opérateur (agir)</option> : null}
+      </select>
+      <select aria-label="Durée de la session" className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm dark:border-gray-800 dark:bg-gray-950" value={duration} onChange={(event) => setDuration(Number(event.target.value))}>
+        <option value={5}>5 min</option><option value={20}>20 min</option><option value={60}>1 h</option><option value={120}>2 h</option>
+      </select>
+      <Button className="h-9 text-xs" disabled={busy} onClick={() => void start()}>{busy ? "Ouverture…" : "Ouvrir"}</Button>
+    </div>
+  </div>
 }
 
 function AccountStatusControls({ wallet, onChanged }: { wallet: AdminWalletDetail["account"]; onChanged: () => Promise<void> }) {
@@ -254,7 +319,7 @@ function AccountStatusControls({ wallet, onChanged }: { wallet: AdminWalletDetai
   return <div className="space-y-2"><p className="text-sm text-gray-500">La clôture est autorisée seulement si les deux soldes sont nuls.</p><div className="flex flex-wrap gap-2">{wallet.status !== "active" ? <Button className="h-8 text-xs" onClick={() => setNextStatus("active")}>Activer</Button> : null}{wallet.status !== "frozen" ? <Button variant="secondary" className="h-8 text-xs" onClick={() => setNextStatus("frozen")}>Geler le compte</Button> : null}<Button variant="secondary" className="h-8 text-xs" onClick={() => setNextStatus("closed")}>Clôturer</Button></div><ConfirmDialog open={!!nextStatus} onOpenChange={(open) => !open && setNextStatus(null)} title={nextStatus === "closed" ? "Clôturer ce compte ?" : "Modifier le statut du compte ?"} description={nextStatus === "closed" ? "Cette action est définitive et sera refusée si un solde disponible ou réservé subsiste." : `Le compte passera à l’état ${nextStatus}.`} confirmLabel={nextStatus === "closed" ? "Clôturer" : "Confirmer"} destructive={nextStatus === "closed"} onConfirm={() => void apply()} /></div>
 }
 
-function BankDetailsPanel({ wallet, onChanged }: { wallet: AdminWalletDetail["account"]; onChanged: () => Promise<void> }) {
+function BankDetailsPanel({ wallet, canWrite, onChanged }: { wallet: AdminWalletDetail["account"]; canWrite: boolean; onChanged: () => Promise<void> }) {
   const { show } = useToast()
   const [iban, setIban] = React.useState(wallet.iban ?? "")
   const [bic, setBic] = React.useState(wallet.bic ?? "")
@@ -279,12 +344,14 @@ function BankDetailsPanel({ wallet, onChanged }: { wallet: AdminWalletDetail["ac
     try { await api.walletAdmin.provisionBankDetails.mutate({ walletAccountId: wallet.id }); await onChanged(); await loadHistory(); show("IBAN/BIC générés automatiquement et journalisés.") } catch (error) { show(apiError(error, "Provisionnement automatique impossible."), "error") } finally { setBusy(false) }
   }
   return <div className="mt-3 space-y-2 border-t border-gray-200 pt-3 dark:border-gray-800"><p className="text-xs font-medium text-gray-500">Cycle de vie RIB</p>
+    {!canWrite ? <p className="text-xs text-gray-500">Ouvrez une session opérateur pour provisionner, faire tourner ou révoquer ce RIB.</p> : <>
     {!wallet.iban ? <Button className="h-8 text-xs" disabled={busy} onClick={() => void autoProvision()}>{busy ? "Génération…" : "Provisionner automatiquement (IBAN/BIC générés)"}</Button> : null}
     <p className="text-xs text-gray-500">{wallet.iban ? "Rotation manuelle avec un IBAN précis :" : "Ou saisir manuellement un IBAN/BIC réel :"}</p>
-    <div className="grid gap-2 sm:grid-cols-2"><Input aria-label="IBAN Wallet" value={iban} onChange={(event) => setIban(event.target.value)} placeholder="IBAN" /><Input aria-label="BIC Wallet" value={bic} onChange={(event) => setBic(event.target.value)} placeholder="BIC" /></div><Input aria-label="Motif de mise à jour RIB" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Motif de provisionnement ou rotation" /><div className="flex flex-wrap gap-2"><Button className="h-8 text-xs" disabled={busy} onClick={() => void save()}>{busy ? "Enregistrement…" : wallet.iban ? "Faire tourner le RIB" : "Provisionner manuellement"}</Button>{wallet.iban ? <Button variant="secondary" className="h-8 text-xs" disabled={busy} onClick={() => void revoke()}>Révoquer</Button> : null}</div><details className="text-xs text-gray-500"><summary className="cursor-pointer">Historique ({history.length})</summary><div className="mt-2 space-y-1">{history.map((item) => <div key={item.id} className="rounded border border-gray-200 px-2 py-1 dark:border-gray-800"><span className="font-mono">{item.iban.slice(0, 4)}••••{item.iban.slice(-4)}</span> · {item.bic} · <Badge variant={item.status === "active" ? "success" : "neutral"}>{item.status}</Badge></div>)}</div></details></div>
+    <div className="grid gap-2 sm:grid-cols-2"><Input aria-label="IBAN Wallet" value={iban} onChange={(event) => setIban(event.target.value)} placeholder="IBAN" /><Input aria-label="BIC Wallet" value={bic} onChange={(event) => setBic(event.target.value)} placeholder="BIC" /></div><Input aria-label="Motif de mise à jour RIB" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Motif de provisionnement ou rotation" /><div className="flex flex-wrap gap-2"><Button className="h-8 text-xs" disabled={busy} onClick={() => void save()}>{busy ? "Enregistrement…" : wallet.iban ? "Faire tourner le RIB" : "Provisionner manuellement"}</Button>{wallet.iban ? <Button variant="secondary" className="h-8 text-xs" disabled={busy} onClick={() => void revoke()}>Révoquer</Button> : null}</div></>}
+    <details className="text-xs text-gray-500"><summary className="cursor-pointer">Historique ({history.length})</summary><div className="mt-2 space-y-1">{history.map((item) => <div key={item.id} className="rounded border border-gray-200 px-2 py-1 dark:border-gray-800"><span className="font-mono">{item.iban.slice(0, 4)}••••{item.iban.slice(-4)}</span> · {item.bic} · <Badge variant={item.status === "active" ? "success" : "neutral"}>{item.status}</Badge></div>)}</div></details></div>
 }
 
-function WalletPermissionsPanel({ userId }: { userId: number }) {
+function WalletPermissionsPanel({ userId, canWrite }: { userId: number; canWrite: boolean }) {
   const { show } = useToast()
   const [permissions, setPermissions] = React.useState<{ permission: string; allowed: boolean; overridden: boolean }[]>([])
   const [busy, setBusy] = React.useState(false)
@@ -293,7 +360,7 @@ function WalletPermissionsPanel({ userId }: { userId: number }) {
     setBusy(true)
     try { const next = await api.walletAdmin.updatePermission.mutate({ userId, permission: permission as never, allowed }); setPermissions(next); show("Permission Wallet mise à jour et journalisée.") } catch (error) { show(apiError(error, "Mise à jour de permission impossible."), "error") } finally { setBusy(false) }
   }
-  return <div className="space-y-2"><p className="text-xs text-gray-500">Les permissions sont évaluées côté serveur. Les changements sont audités.</p>{permissions.map((item) => <label key={item.permission} className="flex items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-2 text-xs dark:border-gray-800"><span><span className="block font-medium">{item.permission}</span><span className="text-gray-500">{item.overridden ? "Surcharge explicite" : "Valeur par défaut du rôle"}</span></span><input type="checkbox" checked={item.allowed} disabled={busy} onChange={(event) => void toggle(item.permission, event.target.checked)} /></label>)}</div>
+  return <div className="space-y-2"><p className="text-xs text-gray-500">Les permissions sont évaluées côté serveur. Les changements sont audités.{!canWrite ? " Ouvrez une session opérateur pour les modifier." : ""}</p>{permissions.map((item) => <label key={item.permission} className="flex items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-2 text-xs dark:border-gray-800"><span><span className="block font-medium">{item.permission}</span><span className="text-gray-500">{item.overridden ? "Surcharge explicite" : "Valeur par défaut du rôle"}</span></span><input type="checkbox" checked={item.allowed} disabled={busy || !canWrite} onChange={(event) => void toggle(item.permission, event.target.checked)} /></label>)}</div>
 }
 
 function EmergencyLockdown({ wallet, onDone }: { wallet: AdminWalletDetail["account"]; onDone: () => Promise<void> }) {

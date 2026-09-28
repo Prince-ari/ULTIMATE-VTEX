@@ -17,6 +17,7 @@ describe("routeur composé VTEX", () => {
       "journal",
       "documents",
       "config",
+      "accessSessions",
       "wallets",
       "bankAccounts",
       "cards",

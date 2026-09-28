@@ -8,6 +8,7 @@ import { supportRouter } from "./routers/support"
 import { journalRouter } from "./routers/journal"
 import { documentsRouter } from "./routers/documents"
 import { configRouter } from "./routers/config"
+import { accessSessionsRouter } from "./routers/accessSessions"
 import { router } from "./trpc"
 
 /**
@@ -26,6 +27,7 @@ export const coreRouter = router({
   journal: journalRouter,
   documents: documentsRouter,
   config: configRouter,
+  accessSessions: accessSessionsRouter,
 })
 
 export type CoreRouter = typeof coreRouter

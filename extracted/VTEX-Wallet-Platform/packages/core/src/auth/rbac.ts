@@ -45,6 +45,9 @@ export const PERMISSIONS = [
   "documents.archive",
   "audit.read",
   "system.manage",
+  "access_session.start_readonly",
+  "access_session.start_operator",
+  "access_session.manage_any",
 ] as const
 
 export type Permission = (typeof PERMISSIONS)[number]
@@ -60,8 +63,9 @@ const SUPER_ADMIN_ONLY: readonly Permission[] = ["system.manage", "staff.assign_
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   super_admin: ALL,
   admin: ALL.filter((permission) => !SUPER_ADMIN_ONLY.includes(permission)),
-  // SUPPORT : lecture seule sur les fiches.
-  agent: ["users.read", "wallets.read", "companies.read", "cards.read", "banking.read", "paymentlinks.read", "apikeys.read", "managers.read", "suggestions.read", "suggestions.send", "documents.read"],
+  // SUPPORT : lecture seule sur les fiches. Peut ouvrir une session d'accès en lecture seule sur un wallet
+  // pour dépanner un titulaire, jamais une session opérateur (réservée à ADMIN/SUPER_ADMIN, Sprint 8).
+  agent: ["users.read", "wallets.read", "companies.read", "cards.read", "banking.read", "paymentlinks.read", "apikeys.read", "managers.read", "suggestions.read", "suggestions.send", "documents.read", "access_session.start_readonly"],
   // Périmètre = wallets attribués (table `manager_assignments`), jamais un accès transverse.
   account_manager: ["suggestions.read", "suggestions.send", "portfolio.read", "documents.read", "documents.send"],
   user: [],
