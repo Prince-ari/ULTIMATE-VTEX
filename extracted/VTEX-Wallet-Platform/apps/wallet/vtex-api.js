@@ -715,6 +715,7 @@
     if (typeof window.renderCardsScreen === "function" && CARDS.length) window.renderCardsScreen();
     if (typeof window.refreshFinancialDisplays === "function") window.refreshFinancialDisplays();
     if (typeof window.renderTransferLockBanner === "function") window.renderTransferLockBanner();
+    if (typeof window.renderScheduledTransfers === "function") window.renderScheduledTransfers();
     if (window.vtx3d && window.vtx3d.refreshCards) window.vtx3d.refreshCards();
     else if (window.vtexRefreshCardFaces) window.vtexRefreshCardFaces();
   }
@@ -1209,14 +1210,42 @@
     return code ? code.trim() : null;
   }
 
+  window.renderScheduledTransfers = async function () {
+    var section = document.getElementById("env-scheduled-section");
+    var list = document.getElementById("env-scheduled-list");
+    if (!section || !list || !walletAccount) return;
+    try {
+      var rows = await query("transactions.listScheduled");
+      var pending = (rows || []).filter(function (row) { return row.status === "pending" && row.fromWalletAccountId === walletAccount.id; });
+      if (!pending.length) { section.style.display = "none"; return; }
+      section.style.display = "block";
+      list.innerHTML = pending.map(function (row) {
+        var amount = new Intl.NumberFormat("fr-FR", { style: "currency", currency: walletAccount.currency }).format(centsToMajor(row.amountCents));
+        var date = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(row.scheduledAt));
+        return '<div class="switch-row"><div class="switch-lbl-wrap"><div><div class="switch-name">' + amount + '</div><div class="switch-sub">Exécution le ' + date + '</div></div></div><button type="button" onclick="cancelScheduledTransfer(' + row.id + ')" style="background:none;border:1px solid var(--c-border-mid);border-radius:999px;padding:6px 12px;color:var(--c-t2);font-size:11.5px;font-weight:700;cursor:pointer">Annuler</button></div>';
+      }).join("");
+    } catch (error) { section.style.display = "none"; }
+  };
+
+  window.cancelScheduledTransfer = async function (scheduledTransferId) {
+    if (!window.confirm("Annuler ce virement programmé et libérer les fonds réservés ?")) return;
+    try {
+      await rpc("transactions.cancelScheduled", { scheduledTransferId: Number(scheduledTransferId) });
+      notify("Virement programmé annulé.", "ph-check-circle");
+      await hydrateWallet();
+    } catch (error) { notify(error.message, "ph-warning-circle"); }
+  };
+
   window.submitClassique = async function () {
     var name = document.getElementById("cl-name").value.trim();
     var iban = document.getElementById("cl-iban").value.trim().replace(/\s/g, "").toUpperCase();
     var amount = document.getElementById("cl-amount").value;
     if (!name || !iban || !amount) return notify("Complète le destinataire et le montant.", "ph-warning-circle");
-    if (document.getElementById("when-schedule").classList.contains("active") || document.getElementById("when-recurring").classList.contains("active")) {
-      return notify("La programmation et la récurrence ne sont pas encore activées côté serveur. Crée un ordre immédiat ou reviens ultérieurement.", "ph-info");
+    if (document.getElementById("when-recurring").classList.contains("active")) {
+      return notify("Les virements récurrents ne sont pas encore activés côté serveur. Crée un ordre immédiat ou programmé.", "ph-info");
     }
+    var scheduled = document.getElementById("when-schedule").classList.contains("active");
+    var scheduleDateValue = document.getElementById("cl-date").value;
     try {
       if (!walletAccount) throw new Error("Session Wallet non chargée.");
       var beneficiary = BENEFICIAIRES.find(function (item) { return item.iban.replace(/\s/g, "").toUpperCase() === iban; });
@@ -1224,9 +1253,20 @@
         var created = await rpc("beneficiaries.create", { fullName: name, iban: iban });
         beneficiary = { id: String(created.id), name: created.fullName, iban: created.iban, bank: created.bic || "" };
       }
-      var code = await obtainTransferCode();
-      if (!code) return;
-      var outcome = await rpc("transactions.transferExternal", { walletAccountId: walletAccount.id, beneficiaryId: Number(beneficiary.id), amountCents: majorToCents(amount), description: "Virement classique immédiat", idempotencyKey: makeIdempotencyKey("classic"), code: code });
+      if (scheduled) {
+        if (!beneficiary.internalWalletAccountId) return notify("La programmation n’est disponible que vers un autre wallet VTEX pour le moment. Ajoutez le compte VTEX interne du bénéficiaire ou envoyez un ordre immédiat.", "ph-info");
+        if (!scheduleDateValue) return notify("Choisissez une date d’exécution.", "ph-warning-circle");
+        var scheduleCode = await obtainTransferCode();
+        if (!scheduleCode) return;
+        var scheduleOutcome = await rpc("transactions.scheduleInternal", { fromWalletAccountId: walletAccount.id, toWalletAccountId: Number(beneficiary.internalWalletAccountId), amountCents: majorToCents(amount), description: "Virement classique programmé", scheduledAt: new Date(scheduleDateValue + "T09:00:00").toISOString(), code: scheduleCode });
+        await hydrateWallet();
+        notify("Virement programmé pour le " + new Date(scheduleOutcome.scheduledAt).toLocaleDateString("fr-FR") + ".", "ph-clock");
+        window.showView("historique");
+        return;
+      }
+      var immediateCode = await obtainTransferCode();
+      if (!immediateCode) return;
+      var outcome = await rpc("transactions.transferExternal", { walletAccountId: walletAccount.id, beneficiaryId: Number(beneficiary.id), amountCents: majorToCents(amount), description: "Virement classique immédiat", idempotencyKey: makeIdempotencyKey("classic"), code: immediateCode });
       await hydrateWallet();
       notify("Ordre " + outcome.reference + " enregistré et en attente de validation.", "ph-clock");
       window.showView("historique");

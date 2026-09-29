@@ -33,6 +33,30 @@ de la demande « anonymat » côté marketing).
   cours → saisir le code reçu) ; les trois parcours d'envoi (`submitClassique`, `submitSplit`, `submitSend`)
   demandent désormais un code automatiquement et invitent à le saisir avant d'exécuter le virement.
 
+## Virements internes programmés (« latents »)
+
+Demande initiale : « pouvoir programmer des virements latents ». Implémenté pour les virements INTERNES
+uniquement (`scheduleTransferInternal`, `packages/wallet/src/service.ts`) — jamais pour un virement externe
+(IBAN), qui a déjà sa propre notion de « en attente » (validation manuelle par le personnel via
+`resolvePendingTransaction`) ; superposer une seconde notion de « en attente » (programmé) sur le même champ
+`status` aurait créé une ambiguïté dans la bannière d'alerte du Dashboard (`api.walletAdmin.transactions.query({status:"pending"})`,
+qui ne distingue pas aujourd'hui la RAISON d'une attente).
+
+- Table dédiée `scheduled_transfers` (migration `0014_scheduled_transfers`) : les fonds sont réservés
+  (`changeAvailable`/`changeReserved`, même mécanique que l'attente d'un virement externe) dès la
+  programmation, et le CODE DE VALIDATION anti-fraude est consommé à ce moment-là — l'autorisation porte sur
+  la demande, pas sur son exécution différée.
+- `executeDueScheduledTransfers()` : purge paresseuse (pas de tâche planifiée), appelée à chaque
+  `bootstrapWallet` (best-effort, ne bloque jamais l'ouverture du Wallet de l'appelant). Un compte devenu
+  inactif ou une incompatibilité de devise entre la programmation et l'échéance annule proprement le
+  virement et libère les fonds.
+- UI Wallet : le sélecteur « Programmer » déjà présent sur `#view-virement-classique` (jusqu'ici bloqué côté
+  serveur) fonctionne désormais quand le bénéficiaire est lié à un compte VTEX interne
+  (`internalWalletAccountId`) ; une section « Virements programmés » sur la vue Envoyer liste les virements
+  en attente d'exécution avec une action d'annulation.
+- Pas de scheduling pour les virements externes (IBAN) ni pour le Wallet Pro dans cette passe — voir
+  ci-dessous.
+
 ## Reste à faire
 
 - **Wallet Pro (PROFESSIONAL)** : aucun verrou ni code n'est appliqué aux virements business

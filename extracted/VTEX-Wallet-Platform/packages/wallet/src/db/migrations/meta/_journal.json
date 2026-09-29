@@ -78,6 +78,13 @@
       "when": 1790440000000,
       "tag": "0013_wallet_display_name",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1790450000000,
+      "tag": "0014_scheduled_transfers",
+      "breakpoints": true
     }
   ]
 }

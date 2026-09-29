@@ -4824,6 +4824,11 @@
       </div>
     </div>
 
+    <div id="env-scheduled-section" style="display:none">
+      <div class="vx-section-head" style="margin:32px 2px 16px"><span class="vx-section-title">Virements programmés</span></div>
+      <div class="vx-section" style="padding:8px 20px" id="env-scheduled-list"></div>
+    </div>
+
     <div class="vx-section-head" style="margin:32px 2px 16px"><span class="vx-section-title">Envois récents</span></div>
     <div class="vx-section" style="padding:8px 20px" id="env-recent-list"></div>
   </div>
@@ -6704,6 +6709,7 @@ function selectWhen(type){
   ["today","schedule","recurring"].forEach(t => document.getElementById("when-"+t).classList.toggle("active", t === type));
   document.getElementById("panel-schedule").style.display = type === "schedule" ? "block" : "none";
   document.getElementById("panel-recurring").style.display = type === "recurring" ? "block" : "none";
+  if (type === "schedule") document.getElementById("cl-date").min = new Date().toISOString().slice(0, 10);
   if (type === "recurring") renderClassicTimeline();
 }
 let classicFrequency = "weekly";

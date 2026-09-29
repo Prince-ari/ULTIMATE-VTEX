@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, randomInt, scryptSync, timingSafeEqual } from "node:crypto"
-import { and, asc, desc, eq, gte, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm"
 import {
   assertOperatorAccess,
   clearCardSecrets,
@@ -28,6 +28,7 @@ import {
   beneficiaries,
   cards,
   savingsGoals,
+  scheduledTransfers,
   transactions,
   transferCodes,
   walletAccounts,
@@ -425,6 +426,9 @@ export async function getMyWallet(actor: Actor, currency?: Currency) {
 }
 
 export async function bootstrapWallet(actor: Actor) {
+  // Purge paresseuse des virements programmés arrivés à échéance (pas de tâche planifiée) : sans effet s'il n'y en a aucun.
+  // Best-effort : un incident ici ne doit jamais empêcher CE titulaire d'ouvrir son propre Wallet.
+  await executeDueScheduledTransfers().catch((error) => console.error("[wallet] Purge des virements programmés en échec.", error))
   const account = await getMyWallet(actor)
   const [cardRows, transactionRows, beneficiaryRows, savingsGoalRows, userRows, settingsRows] = await Promise.all([
     db.select().from(cards).where(eq(cards.walletAccountId, account.id)).orderBy(desc(cards.createdAt)),
@@ -875,10 +879,129 @@ export async function transferInternal(actor: Actor, input: { fromWalletAccountI
     const response = { transactionId: debit.id, reference, status: "completed" }
     await completeIdempotency(executor, input.idempotencyKey, debit.id, response)
     await logAction(executor, actor.id, "wallet.transfer.internal", "transaction", debit.id, { amountCents: input.amountCents, from: source.id, to: destination.id })
-    await insertWalletNotification(executor, source.userId, actor.id, "Virement interne exécuté", `Votre virement de ${input.amountCents} unités minimales a été exécuté.`)
-    if (destination.userId !== source.userId) await insertWalletNotification(executor, destination.userId, actor.id, "Virement reçu", `Vous avez reçu ${input.amountCents} unités minimales.`)
+    await insertWalletNotification(executor, source.userId, actor.id, "Virement interne exécuté", `Votre virement de ${formatMinor(input.amountCents, source.currency)} a été exécuté.`)
+    if (destination.userId !== source.userId) await insertWalletNotification(executor, destination.userId, actor.id, "Virement reçu", `Vous avez reçu ${formatMinor(input.amountCents, destination.currency)}.`)
     return { ...response, replayed: false }
   })
+}
+
+/**
+ * Wallet.scheduleTransferInternal — « virement latent » : les fonds sont réservés immédiatement (même
+ * mécanique que l'attente d'un virement externe), le code de validation est consommé MAINTENANT (l'autorisation
+ * porte sur cette demande précise, pas sur son exécution différée), et le virement s'exécute de lui-même à la
+ * date choisie — repéré par `executeDueScheduledTransfers`, appelé paresseusement à chaque ouverture du Wallet.
+ */
+export async function scheduleTransferInternal(actor: Actor, input: { fromWalletAccountId: number; toWalletAccountId: number; amountCents: number; description?: string; scheduledAt: Date; code?: string }) {
+  assertPositiveCents(input.amountCents, "Montant du virement")
+  if (input.fromWalletAccountId === input.toWalletAccountId) throw new ValidationError("Le compte source et le compte destinataire doivent être différents.")
+  if (Number.isNaN(input.scheduledAt.getTime()) || input.scheduledAt.getTime() < Date.now() + 5 * 60_000) {
+    throw new ValidationError("La date de programmation doit être au moins cinq minutes dans le futur.")
+  }
+
+  return db.transaction(async (tx) => {
+    const executor = tx as unknown as Executor
+    const source = await ownedAccount(executor, actor, input.fromWalletAccountId, ["admin"])
+    const destination = await getAccountOrThrow(executor, input.toWalletAccountId)
+    if (source.status !== "active" || destination.status !== "active") throw new ValidationError("Un compte concerné n’est pas actif.")
+    if (source.currency !== destination.currency) throw new ValidationError("Les virements internes exigent la même devise.")
+    await assertTransferAuthorized(executor, actor, source, input.code)
+
+    await changeAvailable(executor, source.id, -input.amountCents)
+    await changeReserved(executor, source.id, input.amountCents)
+    const [inserted] = await executor.insert(scheduledTransfers).values({
+      fromWalletAccountId: source.id,
+      toWalletAccountId: destination.id,
+      amountCents: input.amountCents,
+      description: input.description?.trim() || null,
+      scheduledAt: input.scheduledAt,
+      createdBy: actor.id,
+    })
+    await logAction(executor, actor.id, "wallet.transfer.internal.schedule", "scheduled_transfer", inserted.insertId, { amountCents: input.amountCents, from: source.id, to: destination.id, scheduledAt: input.scheduledAt.toISOString() })
+    await insertWalletNotification(executor, source.userId, actor.id, "Virement programmé", `Un virement de ${formatMinor(input.amountCents, source.currency)} est programmé pour le ${input.scheduledAt.toLocaleDateString("fr-FR")}.`)
+    return { scheduledTransferId: inserted.insertId, scheduledAt: input.scheduledAt }
+  })
+}
+
+export async function listMyScheduledTransfers(actor: Actor) {
+  const accounts = await db.select({ id: walletAccounts.id }).from(walletAccounts).where(eq(walletAccounts.userId, actor.id))
+  const accountIds = accounts.map((account) => account.id)
+  if (accountIds.length === 0) return []
+  return db.select().from(scheduledTransfers).where(or(inArray(scheduledTransfers.fromWalletAccountId, accountIds), inArray(scheduledTransfers.toWalletAccountId, accountIds))).orderBy(desc(scheduledTransfers.scheduledAt))
+}
+
+export async function cancelScheduledTransfer(actor: Actor, scheduledTransferId: number) {
+  return db.transaction(async (tx) => {
+    const executor = tx as unknown as Executor
+    const [row] = await executor.select().from(scheduledTransfers).where(eq(scheduledTransfers.id, scheduledTransferId)).limit(1)
+    if (!row) throw new NotFoundError("Virement programmé introuvable.")
+    const source = await getAccountOrThrow(executor, row.fromWalletAccountId)
+    requireSelfOrRole(actor, source.userId, "admin")
+    if (row.status !== "pending") throw new ValidationError("Ce virement programmé n’est plus modifiable.")
+    await changeReserved(executor, source.id, -row.amountCents)
+    await changeAvailable(executor, source.id, row.amountCents)
+    await executor.update(scheduledTransfers).set({ status: "cancelled" }).where(eq(scheduledTransfers.id, row.id))
+    await logAction(executor, actor.id, "wallet.transfer.internal.schedule_cancel", "scheduled_transfer", row.id)
+    await insertWalletNotification(executor, source.userId, actor.id, "Virement programmé annulé", "Le virement programmé a été annulé et les fonds ont été libérés.")
+  })
+}
+
+/** Repère et exécute les virements programmés arrivés à échéance ; appelé paresseusement (pas de tâche planifiée), sans effet si aucun n'est dû. */
+export async function executeDueScheduledTransfers(): Promise<void> {
+  const due = await db.select().from(scheduledTransfers).where(and(eq(scheduledTransfers.status, "pending"), lte(scheduledTransfers.scheduledAt, new Date()))).limit(50)
+  for (const schedule of due) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.transaction(async (tx) => {
+      const executor = tx as unknown as Executor
+      const [current] = await executor.select().from(scheduledTransfers).where(and(eq(scheduledTransfers.id, schedule.id), eq(scheduledTransfers.status, "pending"))).limit(1)
+      if (!current) return // Déjà traité par un autre appel concurrent.
+      const source = await getAccountOrThrow(executor, current.fromWalletAccountId)
+      const destination = await getAccountOrThrow(executor, current.toWalletAccountId)
+      if (source.status !== "active" || destination.status !== "active" || source.currency !== destination.currency) {
+        await changeReserved(executor, source.id, -current.amountCents)
+        await changeAvailable(executor, source.id, current.amountCents)
+        await executor.update(scheduledTransfers).set({ status: "failed", failureReason: "Un compte concerné n’était plus actif à l’échéance.", executedAt: new Date() }).where(eq(scheduledTransfers.id, current.id))
+        await insertWalletNotification(executor, source.userId, source.userId, "Virement programmé annulé", "Le virement programmé n’a pas pu être exécuté (compte inactif) ; les fonds ont été libérés.")
+        return
+      }
+      const sourceBalance = await changeReserved(executor, source.id, -current.amountCents)
+      const destinationBalance = await changeAvailable(executor, destination.id, current.amountCents)
+      const reference = generatedReference("SCH")
+      const debit = await insertTransaction(executor, {
+        reference,
+        walletAccountId: source.id,
+        counterpartyWalletAccountId: destination.id,
+        initiatedByUserId: current.createdBy,
+        type: "transfer_internal",
+        direction: "debit",
+        status: "completed",
+        amountCents: current.amountCents,
+        feeCents: 0,
+        currency: source.currency,
+        description: current.description,
+        completedAt: new Date(),
+      })
+      const credit = await insertTransaction(executor, {
+        reference: `${reference}-C`,
+        walletAccountId: destination.id,
+        counterpartyWalletAccountId: source.id,
+        initiatedByUserId: current.createdBy,
+        type: "transfer_internal",
+        direction: "credit",
+        status: "completed",
+        amountCents: current.amountCents,
+        feeCents: 0,
+        currency: source.currency,
+        description: current.description,
+        completedAt: new Date(),
+      })
+      await writeLedger(executor, { accountId: source.id, transactionId: debit.id, entryKind: "reserved", deltaCents: -current.amountCents, balanceAfterCents: sourceBalance })
+      await writeLedger(executor, { accountId: destination.id, transactionId: credit.id, entryKind: "available", deltaCents: current.amountCents, balanceAfterCents: destinationBalance })
+      await executor.update(scheduledTransfers).set({ status: "executed", transactionId: debit.id, executedAt: new Date() }).where(eq(scheduledTransfers.id, current.id))
+      await logAction(executor, current.createdBy, "wallet.transfer.internal.schedule_execute", "transaction", debit.id, { scheduledTransferId: current.id, amountCents: current.amountCents })
+      await insertWalletNotification(executor, source.userId, current.createdBy, "Virement programmé exécuté", `Votre virement programmé de ${formatMinor(current.amountCents, source.currency)} a été exécuté.`)
+      if (destination.userId !== source.userId) await insertWalletNotification(executor, destination.userId, current.createdBy, "Virement reçu", `Vous avez reçu ${formatMinor(current.amountCents, destination.currency)}.`)
+    })
+  }
 }
 
 export async function transferExternal(actor: Actor, input: { walletAccountId: number; beneficiaryId: number; amountCents: number; description?: string; idempotencyKey: string; code?: string }) {

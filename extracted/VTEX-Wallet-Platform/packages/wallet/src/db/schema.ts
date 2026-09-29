@@ -183,6 +183,32 @@ export const walletLedgerEntries = mysqlTable("wallet_ledger_entries", {
   transactionKindIdx: index("wallet_ledger_entries_transaction_kind_idx").on(t.transactionId, t.entryKind),
 }))
 
+/**
+ * Virement interne programmé (« latent ») : les fonds sont réservés dès la programmation (même mécanique que
+ * l'attente d'un virement externe), puis le virement s'exécute de lui-même à la date choisie — repéré et
+ * exécuté paresseusement (pas de tâche planifiée) à la prochaine ouverture du Wallet, par l'une ou l'autre
+ * partie. Ne couvre que les virements INTERNES (mêmes complications qu'un virement externe déjà soumis à
+ * validation manuelle : y ajouter une seconde notion de « en attente » créerait une ambiguïté côté Dashboard).
+ */
+export const scheduledTransfers = mysqlTable("scheduled_transfers", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  fromWalletAccountId: bigint("from_wallet_account_id", { mode: "number" }).notNull().references(() => walletAccounts.id, { onDelete: "restrict" }),
+  toWalletAccountId: bigint("to_wallet_account_id", { mode: "number" }).notNull().references(() => walletAccounts.id, { onDelete: "restrict" }),
+  amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
+  description: varchar("description", { length: 250 }),
+  scheduledAt: datetime("scheduled_at").notNull(),
+  status: mysqlEnum("status", ["pending", "executed", "cancelled", "failed"]).notNull().default("pending"),
+  failureReason: varchar("failure_reason", { length: 250 }),
+  createdBy: bigint("created_by", { mode: "number" }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  transactionId: bigint("transaction_id", { mode: "number" }).references(() => transactions.id, { onDelete: "set null" }),
+  createdAt: datetime("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  executedAt: datetime("executed_at"),
+}, (t) => ({
+  dueIdx: index("scheduled_transfers_due_idx").on(t.status, t.scheduledAt),
+  fromIdx: index("scheduled_transfers_from_idx").on(t.fromWalletAccountId, t.status),
+  toIdx: index("scheduled_transfers_to_idx").on(t.toWalletAccountId, t.status),
+}))
+
 export const walletIdempotencyKeys = mysqlTable("wallet_idempotency_keys", {
   idempotencyKey: varchar("idempotency_key", { length: 100 }).notNull().primaryKey(),
   userId: bigint("user_id", { mode: "number" }).notNull().references(() => users.id, { onDelete: "restrict" }),
