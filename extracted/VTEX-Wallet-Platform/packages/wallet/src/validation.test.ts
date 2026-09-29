@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { ValidationError } from "@vtex/core"
-import { assertIdempotencyKey, assertPositiveCents, assertSupportedCurrency, normalizeAndValidateBic, normalizeAndValidateIban } from "./validation"
+import { assertIdempotencyKey, assertPositiveCents, assertSupportedCurrency, assertValueDate, normalizeAndValidateBic, normalizeAndValidateIban } from "./validation"
 
 describe("validation Wallet", () => {
   it("normalise et valide un IBAN conforme à MOD 97", () => {
@@ -33,5 +33,12 @@ describe("validation Wallet", () => {
     expect(() => assertIdempotencyKey("transfer:4d6b40c5-5fbc-46d3-9062-a719f05b65c2")).not.toThrow()
     expect(() => assertIdempotencyKey("trop-court")).toThrow(ValidationError)
     expect(() => assertIdempotencyKey("clé avec espace non permise................................")).toThrow(ValidationError)
+  })
+
+  it("la date de valeur affichée au titulaire ne peut jamais être dans le futur", () => {
+    expect(() => assertValueDate(new Date(Date.now() - 86_400_000))).not.toThrow()
+    expect(() => assertValueDate(new Date())).not.toThrow()
+    expect(() => assertValueDate(new Date(Date.now() + 3 * 86_400_000))).toThrow(ValidationError)
+    expect(() => assertValueDate(new Date("not-a-date"))).toThrow(ValidationError)
   })
 })

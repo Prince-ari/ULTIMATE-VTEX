@@ -16,6 +16,12 @@ export function assertSupportedCurrency(value: string): asserts value is Currenc
   }
 }
 
+/** Date de valeur affichée au titulaire : jamais dans le futur (on ne fabrique pas une opération qui n'a pas encore eu lieu). */
+export function assertValueDate(value: Date): asserts value is Date {
+  if (Number.isNaN(value.getTime())) throw new ValidationError("Date de valeur invalide.")
+  if (value.getTime() > Date.now() + 60_000) throw new ValidationError("La date de valeur ne peut pas être dans le futur.")
+}
+
 /** Validation IBAN/BIC partagée avec le Wallet Pro : voir `@vtex/core` (checksum ISO 13616 / MOD 97). */
 export { normalizeAndValidateBic, normalizeAndValidateIban } from "@vtex/core"
 

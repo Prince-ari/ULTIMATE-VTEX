@@ -57,6 +57,13 @@
       "when": 1790410000000,
       "tag": "0010_wallet_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1790420000000,
+      "tag": "0011_transaction_value_date",
+      "breakpoints": true
     }
   ]
 }

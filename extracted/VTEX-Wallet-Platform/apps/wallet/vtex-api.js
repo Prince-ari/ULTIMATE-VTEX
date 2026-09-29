@@ -222,7 +222,7 @@
   function transactionTypeLabel(type) { return TRANSACTION_TYPE_LABELS[type] || String(type).replace(/_/g, " "); }
 
   function mapTransaction(transaction) {
-    var date = new Date(transaction.createdAt);
+    var date = new Date(transaction.valueDate || transaction.createdAt);
     var visual = iconForTransaction(transaction);
     return {
       id: String(transaction.id),

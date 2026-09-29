@@ -37,7 +37,7 @@ import {
   type WalletAccount,
   type WalletTransaction,
 } from "./db/schema"
-import { assertIdempotencyKey, assertPositiveCents, assertSupportedCurrency, normalizeAndValidateBic, normalizeAndValidateIban } from "./validation"
+import { assertIdempotencyKey, assertPositiveCents, assertSupportedCurrency, assertValueDate, normalizeAndValidateBic, normalizeAndValidateIban } from "./validation"
 
 type Executor = Db
 type CardControls = Partial<Pick<Card, "onlinePaymentsEnabled" | "contactlessEnabled" | "cashWithdrawalEnabled">>
@@ -900,10 +900,11 @@ export async function resolvePendingTransaction(actor: Actor, transactionId: num
   })
 }
 
-export async function adjustWalletBalance(actor: Actor, input: { walletAccountId: number; deltaCents: number; reason: string; idempotencyKey: string }) {
+export async function adjustWalletBalance(actor: Actor, input: { walletAccountId: number; deltaCents: number; reason: string; idempotencyKey: string; valueDate?: Date }) {
   requireRole(actor, "admin")
   if (!Number.isSafeInteger(input.deltaCents) || input.deltaCents === 0) throw new ValidationError("L’ajustement doit être un entier non nul.")
   if (input.reason.trim().length < 8) throw new ValidationError("Une justification d’au moins huit caractères est requise.")
+  if (input.valueDate) assertValueDate(input.valueDate)
   await assertOperatorAccess(db, actor, { walletType: "PERSONAL", holderId: (await getAccountOrThrow(db, input.walletAccountId)).userId })
 
   return db.transaction(async (tx) => {
@@ -925,12 +926,13 @@ export async function adjustWalletBalance(actor: Actor, input: { walletAccountId
       currency: account.currency,
       description: input.reason.trim(),
       completedAt: new Date(),
+      valueDate: input.valueDate ?? null,
     })
     await writeLedger(executor, { accountId: account.id, transactionId: transaction.id, entryKind: "available", deltaCents: input.deltaCents, balanceAfterCents: balanceAfter })
     const response = { transactionId: transaction.id, reference: transaction.reference, status: "completed" }
     await completeIdempotency(executor, input.idempotencyKey, transaction.id, response)
     await logAction(executor, actor.id, "wallet.balance.adjust", "wallet_account", account.id, { deltaCents: input.deltaCents, reason: input.reason.trim() })
-    await insertWalletNotification(executor, account.userId, actor.id, "Solde ajusté", "Une correction de solde a été enregistrée et journalisée sur votre compte.")
+    await insertWalletNotification(executor, account.userId, actor.id, "Solde ajusté", `Une correction de solde a été enregistrée sur votre compte : ${input.reason.trim()}`)
     return { ...response, replayed: false }
   })
 }

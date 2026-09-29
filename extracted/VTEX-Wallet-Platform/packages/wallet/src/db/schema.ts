@@ -130,6 +130,8 @@ export const transactions = mysqlTable("transactions", {
   metadata: json("metadata").$type<Record<string, unknown> | null>(),
   scheduledAt: datetime("scheduled_at"),
   completedAt: datetime("completed_at"),
+  /** Date de valeur affichée au titulaire (jamais dans le futur) ; NULL = on affiche createdAt. N'affecte ni le grand livre ni l'ordre chronologique réel des écritures. */
+  valueDate: datetime("value_date"),
   rejectedReason: varchar("rejected_reason", { length: 250 }),
   createdAt: datetime("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: datetime("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
