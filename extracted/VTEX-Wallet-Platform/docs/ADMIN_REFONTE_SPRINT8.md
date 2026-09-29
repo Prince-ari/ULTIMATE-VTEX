@@ -89,3 +89,25 @@ conformément à « lecture seule par défaut ».
   révélation carte/CVV du Sprint « Coffre de cartes », qui reste inchangée et indépendante de ce mécanisme).
 - Le compte à rebours de session côté Dashboard est un simple minuteur d'affichage ; l'expiration réelle est
   toujours vérifiée côté serveur à la prochaine requête, jamais côté client.
+
+## Allègement de la friction (suite, même sprint)
+
+Retour explicite du propriétaire de la plateforme : le garde-fou devait rester en place, mais son **ouverture**
+devait être quasi immédiate pour un usage quotidien efficace. Traité par l'interface, pas par un affaiblissement du
+mécanisme serveur (aucune règle RBAC ni `assertOperatorAccess` n'a changé) :
+
+- Bouton **« Accès rapide »** (Dashboard, ADMIN/SUPER_ADMIN uniquement) : ouvre en un clic une session **opérateur**
+  de 60 minutes avec un motif par défaut (« Dépannage demandé par le titulaire »). Le motif et la durée restent
+  personnalisables juste en dessous pour qui préfère préciser.
+- Le sélecteur de mode démarre désormais sur **Opérateur** (au lieu de Lecture seule) pour un ADMIN/SUPER_ADMIN —
+  il n'y a plus de bascule à faire pour le cas d'usage le plus fréquent.
+- Durée par défaut portée de 20 à 60 minutes pour éviter de rouvrir une session en cours de dépannage.
+- Boutons de motifs rapides (« Dépannage demandé par le titulaire », « Vérification suite signalement »,
+  « Intervention technique en cours ») pour remplir le champ motif en un clic sans taper de texte.
+
+**Explicitement refusé, et pourquoi** : une demande de « mot de passe universel » (un secret partagé donnant accès à
+n'importe quel compte) a été déclinée. Un tel mécanisme constituerait un point de défaillance unique catastrophique
+pour une plateforme financière — une fuite unique exposerait tous les comptes — et rendrait le journal d'audit de ce
+sprint inutile, puisque `support_session_id` et l'acteur réel n'auraient plus de sens si l'authentification n'était
+plus individuelle. L'accès rapide ci-dessus répond au même besoin de vitesse en gardant chaque action attribuable à
+son véritable auteur : chaque membre de l'équipe continue de s'authentifier avec son propre compte.

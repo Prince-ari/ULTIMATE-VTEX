@@ -247,11 +247,15 @@ function WalletDetailConsole({ detail, canOperate, canAdjust, onChanged }: { det
   </>
 }
 
+const QUICK_REASONS = ["Dépannage demandé par le titulaire", "Vérification suite signalement", "Intervention technique en cours"]
+const DEFAULT_OPERATOR_DURATION = 60
+
 function AccessSessionPanel({ holderId, canStartOperator, session, onSessionChange }: { holderId: number; canStartOperator: boolean; session: AccessSession | null; onSessionChange: (session: AccessSession | null) => void }) {
   const { show } = useToast()
   const [reason, setReason] = React.useState("")
-  const [mode, setMode] = React.useState<"read_only" | "operator">("read_only")
-  const [duration, setDuration] = React.useState(20)
+  // Un ADMIN/SUPER_ADMIN vient presque toujours ici pour agir : autant lui éviter le clic de bascule read_only → opérateur.
+  const [mode, setMode] = React.useState<"read_only" | "operator">(canStartOperator ? "operator" : "read_only")
+  const [duration, setDuration] = React.useState(canStartOperator ? DEFAULT_OPERATOR_DURATION : 20)
   const [busy, setBusy] = React.useState(false)
   const [now, setNow] = React.useState(() => Date.now())
 
@@ -261,13 +265,13 @@ function AccessSessionPanel({ holderId, canStartOperator, session, onSessionChan
   React.useEffect(() => { void load() }, [load])
   React.useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id) }, [])
 
-  async function start() {
-    if (reason.trim().length < 8) return show("Le motif doit contenir au moins huit caractères.", "error")
+  async function open(openReason: string, openMode: "read_only" | "operator", openDuration: number) {
+    if (openReason.trim().length < 8) return show("Le motif doit contenir au moins huit caractères.", "error")
     setBusy(true)
     try {
-      const created = await api.accessSessions.start.mutate({ walletType: "PERSONAL", holderId, mode, reason: reason.trim(), durationMinutes: duration })
+      const created = await api.accessSessions.start.mutate({ walletType: "PERSONAL", holderId, mode: openMode, reason: openReason.trim(), durationMinutes: openDuration })
       onSessionChange(created); setReason("")
-      show(mode === "operator" ? "Session opérateur ouverte : vous pouvez agir sur ce wallet." : "Session de consultation ouverte.")
+      show(openMode === "operator" ? "Session opérateur ouverte : vous pouvez agir sur ce wallet." : "Session de consultation ouverte.")
     } catch (error) { show(apiError(error, "Ouverture de session impossible."), "error") } finally { setBusy(false) }
   }
   async function end() {
@@ -289,8 +293,12 @@ function AccessSessionPanel({ holderId, canStartOperator, session, onSessionChan
   }
 
   return <div className="rounded-md border border-dashed border-gray-300 p-3 dark:border-gray-700">
-    <p className="text-sm font-medium text-gray-900 dark:text-gray-50">Ouvrir une session d’accès</p>
-    <p className="mt-1 text-xs text-gray-500">Par défaut ce wallet est en lecture seule. Ouvrez une session, avec un motif, pour le consulter ou — en mode opérateur — agir dessus le temps de dépanner ce titulaire.</p>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <p className="text-sm font-medium text-gray-900 dark:text-gray-50">Ouvrir une session d’accès</p>
+      {canStartOperator ? <Button className="h-7 text-xs" disabled={busy} onClick={() => void open(QUICK_REASONS[0], "operator", DEFAULT_OPERATOR_DURATION)}>{busy ? "Ouverture…" : `Accès rapide (${DEFAULT_OPERATOR_DURATION} min)`}</Button> : null}
+    </div>
+    <p className="mt-1 text-xs text-gray-500">Par défaut ce wallet est en lecture seule. « Accès rapide » ouvre en un clic une session opérateur d’{DEFAULT_OPERATOR_DURATION} min — le motif et la durée restent personnalisables ci-dessous si besoin.</p>
+    <div className="mt-2 flex flex-wrap gap-1">{QUICK_REASONS.map((quick) => <button key={quick} type="button" className="rounded-full border border-gray-200 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-900" onClick={() => setReason(quick)}>{quick}</button>)}</div>
     <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
       <Input aria-label="Motif de la session d’accès" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Motif (ex. le titulaire signale un virement manquant)" />
       <select aria-label="Mode de la session" className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm dark:border-gray-800 dark:bg-gray-950" value={mode} onChange={(event) => setMode(event.target.value as "read_only" | "operator")}>
@@ -300,7 +308,7 @@ function AccessSessionPanel({ holderId, canStartOperator, session, onSessionChan
       <select aria-label="Durée de la session" className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm dark:border-gray-800 dark:bg-gray-950" value={duration} onChange={(event) => setDuration(Number(event.target.value))}>
         <option value={5}>5 min</option><option value={20}>20 min</option><option value={60}>1 h</option><option value={120}>2 h</option>
       </select>
-      <Button className="h-9 text-xs" disabled={busy} onClick={() => void start()}>{busy ? "Ouverture…" : "Ouvrir"}</Button>
+      <Button className="h-9 text-xs" disabled={busy} onClick={() => void open(reason, mode, duration)}>{busy ? "Ouverture…" : "Ouvrir"}</Button>
     </div>
   </div>
 }
