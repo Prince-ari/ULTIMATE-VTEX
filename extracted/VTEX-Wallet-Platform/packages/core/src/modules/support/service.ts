@@ -1,9 +1,15 @@
-import { desc, eq } from "drizzle-orm"
+import { desc, eq, or } from "drizzle-orm"
 
 import type { Db } from "../../db/client"
-import { supportTickets } from "../../db/schema"
+import { supportTickets, users } from "../../db/schema"
 import type { Actor } from "../../auth/permissions"
 import { requireRole, requireSelfOrRole, ValidationError, NotFoundError } from "../../auth/permissions"
+import { createSystemNotification } from "../notifications/service"
+
+/** Personnel à alerter d'une activité de ticket (pas d'assignation par ticket : tout admin/agent suit la file). */
+async function supportStaff(db: Db) {
+  return db.select({ id: users.id }).from(users).where(or(eq(users.role, "admin"), eq(users.role, "agent")))
+}
 
 /** support.list — admin/agent, tous les tickets. */
 export async function listTickets(db: Db, actor: Actor) {
@@ -30,7 +36,15 @@ export async function createTicket(db: Db, actor: Actor, subject: string, firstM
       { authorId: actor.id, authorRole: actor.role, body: firstMessage, createdAt: new Date().toISOString() },
     ],
   })
-  return inserted.insertId
+  const ticketId = inserted.insertId
+  const staff = await supportStaff(db)
+  await Promise.all(staff.map((member) => createSystemNotification(db, {
+    targetUserId: member.id,
+    createdBy: actor.id,
+    title: "Nouveau ticket de support",
+    body: `« ${subject.trim()} » vient d'être ouvert.`,
+  })))
+  return ticketId
 }
 
 async function ownedTicket(db: Db, actor: Actor, id: number) {
@@ -51,6 +65,24 @@ export async function replyToTicket(db: Db, actor: Actor, id: number, body: stri
     { authorId: actor.id, authorRole: actor.role, body, createdAt: new Date().toISOString() },
   ]
   await db.update(supportTickets).set({ messages, updatedAt: new Date() }).where(eq(supportTickets.id, id))
+
+  // Une réponse du titulaire relance la file d'attente du personnel ; une réponse du personnel ne se notifie pas elle-même.
+  if (actor.id === ticket.userId) {
+    const staff = await supportStaff(db)
+    await Promise.all(staff.map((member) => createSystemNotification(db, {
+      targetUserId: member.id,
+      createdBy: actor.id,
+      title: "Nouvelle réponse sur un ticket",
+      body: `« ${ticket.subject} » a reçu une réponse du titulaire.`,
+    })))
+  } else {
+    await createSystemNotification(db, {
+      targetUserId: ticket.userId,
+      createdBy: actor.id,
+      title: "Réponse du support",
+      body: `« ${ticket.subject} » a reçu une réponse de notre équipe.`,
+    })
+  }
 }
 
 /** support.updateStatus — admin/agent. */
