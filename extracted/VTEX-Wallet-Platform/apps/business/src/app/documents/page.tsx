@@ -16,7 +16,7 @@ type Doc = Outputs["documents"]["listMine"][number]
 
 const CATEGORY_LABEL: Record<string, string> = {
   statement: "Relevé", receipt: "Reçu", contract: "Contrat", identity: "Pièce d'identité", tax: "Fiscal", notice: "Avis",
-  account_document: "Document de compte", transfer_proof: "Justificatif de virement", other: "Autre",
+  account_document: "Document de compte", rib: "RIB", transfer_proof: "Justificatif de virement", other: "Autre",
 }
 const REVIEW_LABEL: Record<string, string> = { pending: "En cours d'examen", validated: "Validé", rejected: "Refusé" }
 const REVIEW_TONE: Record<string, BadgeTone> = { pending: "gold", validated: "positive", rejected: "danger" }

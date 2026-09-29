@@ -2,7 +2,7 @@ import type { LegIconName } from "@/components/ui/LegIcon"
 
 /** Libellés, tons et contrôles d'import des documents (Dashboard). Le serveur décide et revérifie tout ; ici on ne fait que présenter et éviter un aller-retour inutile. */
 
-export type DocumentCategory = "statement" | "receipt" | "contract" | "identity" | "tax" | "notice" | "account_document" | "other" | "transfer_proof"
+export type DocumentCategory = "statement" | "receipt" | "contract" | "identity" | "tax" | "notice" | "account_document" | "rib" | "other" | "transfer_proof"
 export type DocumentStatus = "active" | "archived" | "revoked"
 export type ReviewStatus = "none" | "pending" | "validated" | "rejected"
 export type Tone = "ok" | "warn" | "danger" | "neutral"
@@ -16,12 +16,13 @@ export const CATEGORY_LABEL: Record<DocumentCategory, string> = {
   tax: "Fiscal",
   notice: "Avis",
   account_document: "Document de compte",
+  rib: "RIB",
   other: "Autre",
   transfer_proof: "Justificatif de virement",
 }
 
 /** Catégories proposées à l'envoi (un justificatif de virement ne s'envoie pas : c'est le titulaire qui le remet). */
-export const SEND_CATEGORIES = ["statement", "receipt", "contract", "identity", "tax", "notice", "account_document", "other"] as const satisfies ReadonlyArray<DocumentCategory>
+export const SEND_CATEGORIES = ["rib", "statement", "receipt", "contract", "identity", "tax", "notice", "account_document", "other"] as const satisfies ReadonlyArray<DocumentCategory>
 
 export const STATUS_LABEL: Record<DocumentStatus, string> = { active: "Disponible", archived: "Archivé", revoked: "Retiré" }
 export const REVIEW_LABEL: Record<ReviewStatus, string> = { none: "Sans examen", pending: "À examiner", validated: "Validé", rejected: "Refusé" }

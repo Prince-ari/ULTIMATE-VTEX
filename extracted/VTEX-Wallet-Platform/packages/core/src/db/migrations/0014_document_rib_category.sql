@@ -1,0 +1,1 @@
+ALTER TABLE `wallet_documents` MODIFY COLUMN `document_type` enum('statement','receipt','contract','identity','account_document','rib','transfer_proof','tax','notice','other') NOT NULL DEFAULT 'statement';

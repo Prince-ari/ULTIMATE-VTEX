@@ -45,7 +45,7 @@ import { holderKey, loadHolders, recipientsOf, searchHolders, type HolderRef } f
  *  - AUCUNE clé d'objet ni URL de stockage ne sort de ce module : le téléchargement passe par `/api/media/documents/{id}` (session + droit + périmètre).
  */
 
-export const DOCUMENT_CATEGORIES = ["statement", "receipt", "contract", "identity", "tax", "notice", "account_document", "other"] as const
+export const DOCUMENT_CATEGORIES = ["statement", "receipt", "contract", "identity", "tax", "notice", "account_document", "rib", "other"] as const
 const ALL_CATEGORIES = [...DOCUMENT_CATEGORIES, "transfer_proof"] as const
 const STATUSES = ["active", "archived", "revoked"] as const
 const REVIEWS = ["none", "pending", "validated", "rejected"] as const

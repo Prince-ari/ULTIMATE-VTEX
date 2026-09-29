@@ -371,7 +371,7 @@ export const documents = mysqlTable("wallet_documents", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
   userId: bigint("user_id", { mode: "number" }).notNull().references(() => users.id, { onDelete: "restrict" }),
   title: varchar("title", { length: 180 }).notNull(),
-  documentType: mysqlEnum("document_type", ["statement", "receipt", "contract", "identity", "account_document", "transfer_proof", "tax", "notice", "other"]).notNull().default("statement"),
+  documentType: mysqlEnum("document_type", ["statement", "receipt", "contract", "identity", "account_document", "rib", "transfer_proof", "tax", "notice", "other"]).notNull().default("statement"),
   fileName: varchar("file_name", { length: 180 }).notNull(),
   mimeType: varchar("mime_type", { length: 120 }).notNull().default("text/plain; charset=utf-8"),
   content: text("content"),
