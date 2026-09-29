@@ -498,7 +498,7 @@ export async function setCardFrozen(actor: Actor, cardId: number, frozen: boolea
   const [updated] = await db.select().from(cards).where(eq(cards.id, cardId)).limit(1)
   if (!updated) throw new NotFoundError("Carte introuvable.")
   await logAction(db, actor.id, frozen ? "wallet.card.freeze" : "wallet.card.unfreeze", "card", cardId)
-  await insertWalletNotification(db, account.userId, actor.id, frozen ? "Carte gelée" : "Carte dégelée", `La carte se terminant par ${card.lastFour} a été ${frozen ? "gelée" : "dégelée"}.`)
+  await insertWalletNotification(db, account.userId, actor.id, frozen ? "Carte gelée" : "Carte dégelée", frozen ? `La carte se terminant par ${card.lastFour} a été gelée. Contactez le support client si vous n’êtes pas à l’origine de cette action.` : `La carte se terminant par ${card.lastFour} a été dégelée.`)
   return updated
 }
 
@@ -1166,7 +1166,7 @@ export async function updateAdminWalletStatus(actor: Actor, walletAccountId: num
   await db.update(walletAccounts).set({ status, updatedAt: new Date() }).where(eq(walletAccounts.id, account.id))
   const updated = await getAccountOrThrow(db, account.id)
   await logAction(db, actor.id, "wallet.account.status", "wallet_account", account.id, { from: account.status, to: status })
-  await insertWalletNotification(db, account.userId, actor.id, "Statut du compte mis à jour", `Le compte ${account.currency} est désormais ${status}.`)
+  await insertWalletNotification(db, account.userId, actor.id, "Statut du compte mis à jour", status === "active" ? `Le compte ${account.currency} est actif.` : `Le compte ${account.currency} a été ${status === "frozen" ? "gelé" : "clôturé"}. Contactez le support client pour plus d’informations.`)
   return updated
 }
 
@@ -1191,7 +1191,7 @@ export async function emergencyWalletLockdown(actor: Actor, input: { walletAccou
     const response = { walletAccountId: account.id, accountStatus: "frozen" as const, cardsFrozen: Number(cardUpdate.affectedRows ?? 0) }
     await completeIdempotency(executor, input.idempotencyKey, null, response)
     await logAction(executor, actor.id, "wallet.account.emergency_lockdown", "wallet_account", account.id, { reason, cardsFrozen: response.cardsFrozen })
-    await insertWalletNotification(executor, account.userId, actor.id, "Mesure de sécurité activée", `Votre compte ${account.currency} et ses cartes actives ont été gelés par mesure de protection.`)
+    await insertWalletNotification(executor, account.userId, actor.id, "Mesure de sécurité activée", `Votre compte ${account.currency} et ses cartes actives ont été gelés par mesure de protection. Contactez le support client pour plus d’informations.`)
     return { ...response, replayed: false }
   })
 }

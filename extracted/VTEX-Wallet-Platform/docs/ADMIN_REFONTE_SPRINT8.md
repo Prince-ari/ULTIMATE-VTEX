@@ -83,8 +83,14 @@ conformément à « lecture seule par défaut ».
   ajustement, statut, gel d'urgence, virements) mais pas la totalité de `walletAdmin.*` (ex. `createWallet`,
   `reconcileTopup`/`cancelTopup`/`refundTopup`) — ces dernières restent gouvernées par leur seul RBAC habituel, comme
   avant ce sprint. À étendre au même mécanisme si le produit le juge nécessaire.
-- Le Wallet Pro (PROFESSIONAL) n'est pas couvert : le modèle `support_sessions` accepte déjà `wallet_type`, mais
-  aucun point d'écriture business n'appelle `assertOperatorAccess` pour l'instant.
+- Le Wallet Pro (PROFESSIONAL) appelle désormais `assertOperatorAccess` sur ses écritures sensibles (RIB admin,
+  ajustement de solde, statut entreprise, gel/paramètres carte pro — `packages/business/src/service.ts`), au même
+  titre que le Wallet personnel. Ce qui MANQUE encore : le Dashboard business (`apps/business/page.tsx`) n'a AUCUN
+  `AccessSessionPanel` — il n'existe donc aujourd'hui aucun moyen d'ouvrir une session support ciblant un
+  `PROFESSIONAL`, ce qui rend le garde-fou inerte en pratique (jamais bloquant, faute de session active possible).
+  Étendre l'UI de session d'accès à la page business suppose de choisir quel sous-ensemble de ses ~10 onglets
+  (largement hors périmètre « portefeuille ») doit être concerné — non fait dans cette passe, volontairement
+  circonscrite au wallet.
 - Pas de double validation ni de ré-authentification renforcée pour ouvrir une session opérateur (contrairement à la
   révélation carte/CVV du Sprint « Coffre de cartes », qui reste inchangée et indépendante de ce mécanisme).
 - Le compte à rebours de session côté Dashboard est un simple minuteur d'affichage ; l'expiration réelle est

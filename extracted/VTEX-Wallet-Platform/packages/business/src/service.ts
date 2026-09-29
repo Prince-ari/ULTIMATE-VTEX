@@ -2,6 +2,7 @@ import { randomBytes, scryptSync } from "node:crypto"
 import { and, desc, eq, gte, inArray, sql } from "drizzle-orm"
 import { isCurrencyCode } from "@vtex/money"
 import {
+  assertOperatorAccess,
   db,
   generatedIban,
   isAdminRole,
@@ -75,6 +76,12 @@ function hashSecret(value: string): string {
 
 export async function insertBusinessNotification(executor: Executor, targetUserId: number, actorId: number, title: string, body: string) {
   await executor.insert(notifications).values({ targetUserId, title, body, status: "sent", sentAt: new Date(), createdBy: actorId })
+}
+
+/** Alerte les responsables (owner/admin actifs) d'une entreprise : la seule personne qui reçoit une invitation ciblée est le membre invité, mais un événement qui touche l'entreprise entière doit atteindre qui peut agir dessus. */
+async function notifyBusinessLeadership(executor: Executor, businessId: number, actorId: number, title: string, body: string) {
+  const leads = await executor.select({ userId: businessMembers.userId }).from(businessMembers).where(and(eq(businessMembers.businessId, businessId), eq(businessMembers.status, "active"), inArray(businessMembers.role, ["owner", "admin"])))
+  await Promise.all(leads.map((lead) => insertBusinessNotification(executor, lead.userId, actorId, title, body)))
 }
 
 /* ────────────────  Entreprise & appartenance  ──────────────── */
@@ -281,6 +288,7 @@ export async function provisionBankDetails(actor: Actor, businessId: number, acc
 /** Attribue (ou remplace) un RIB sur un compte Wallet Pro — Dashboard, administrateurs uniquement, motif journalisé. */
 export async function adminAssignBusinessBankDetails(actor: Actor, input: { businessId: number; accountId: number; iban: string; bic: string; reason: string }) {
   requireRole(actor, "admin")
+  await assertOperatorAccess(db, actor, { walletType: "PROFESSIONAL", holderId: input.businessId })
   if (input.reason.trim().length < 8) throw new ValidationError("Le motif RIB doit contenir au moins huit caractères.")
   const iban = normalizeAndValidateIban(input.iban)
   const bic = normalizeAndValidateBic(input.bic)
@@ -298,6 +306,7 @@ export async function adminAssignBusinessBankDetails(actor: Actor, input: { busi
 /** Retire le RIB d'un compte Wallet Pro (motif journalisé). */
 export async function adminRevokeBusinessBankDetails(actor: Actor, input: { businessId: number; accountId: number; reason: string }) {
   requireRole(actor, "admin")
+  await assertOperatorAccess(db, actor, { walletType: "PROFESSIONAL", holderId: input.businessId })
   if (input.reason.trim().length < 8) throw new ValidationError("Le motif de révocation doit contenir au moins huit caractères.")
   const [account] = await db.select().from(businessWalletAccounts).where(and(eq(businessWalletAccounts.id, input.accountId), eq(businessWalletAccounts.businessId, input.businessId))).limit(1)
   if (!account) throw new NotFoundError("Compte Wallet Pro introuvable pour cette entreprise.")
@@ -326,12 +335,13 @@ async function assertAccountOfBusiness(executor: Executor, businessId: number, a
 
 async function assertCardOfBusiness(executor: Executor, businessId: number, cardId: number) {
   const [row] = await executor
-    .select({ id: businessCards.id })
+    .select({ id: businessCards.id, lastFour: businessCards.lastFour })
     .from(businessCards)
     .innerJoin(businessWalletAccounts, eq(businessCards.businessWalletAccountId, businessWalletAccounts.id))
     .where(and(eq(businessCards.id, cardId), eq(businessWalletAccounts.businessId, businessId)))
     .limit(1)
   if (!row) throw new NotFoundError("Carte introuvable pour cette entreprise.")
+  return row
 }
 
 export async function createCard(actor: Actor, businessId: number, input: { businessWalletAccountId: number; cardholderName: string; assignedToUserId?: number; network: "visa" | "mastercard" | "cb"; theme: "navy" | "teal" | "brick"; label?: string; expiresAt: Date }) {
@@ -355,14 +365,17 @@ export async function createCard(actor: Actor, businessId: number, input: { busi
 
 export async function setCardFrozen(actor: Actor, businessId: number, cardId: number, frozen: boolean) {
   await requireBusinessRole(db, actor, businessId, "owner", "admin", "finance")
-  await assertCardOfBusiness(db, businessId, cardId)
+  await assertOperatorAccess(db, actor, { walletType: "PROFESSIONAL", holderId: businessId })
+  const card = await assertCardOfBusiness(db, businessId, cardId)
   await db.update(businessCards).set({ status: frozen ? "frozen" : "active", updatedAt: new Date() }).where(eq(businessCards.id, cardId))
   await logAction(db, actor.id, "business.card.freeze", "business_card", cardId, { frozen })
+  await notifyBusinessLeadership(db, businessId, actor.id, frozen ? "Carte professionnelle gelée" : "Carte professionnelle dégelée", frozen ? `La carte se terminant par ${card.lastFour} a été gelée. Contactez le support client si vous n’êtes pas à l’origine de cette action.` : `La carte se terminant par ${card.lastFour} a été dégelée.`)
   return listCards(actor, businessId)
 }
 
 export async function updateCardControls(actor: Actor, businessId: number, cardId: number, controls: Partial<Pick<BusinessCard, "onlinePaymentsEnabled" | "contactlessEnabled" | "cashWithdrawalEnabled" | "dailyLimitCents" | "monthlyLimitCents" | "perTransactionLimitCents">>) {
   await requireBusinessRole(db, actor, businessId, "owner", "admin")
+  await assertOperatorAccess(db, actor, { walletType: "PROFESSIONAL", holderId: businessId })
   await assertCardOfBusiness(db, businessId, cardId)
   for (const value of [controls.dailyLimitCents, controls.monthlyLimitCents, controls.perTransactionLimitCents]) {
     if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0)) throw new ValidationError("Chaque plafond doit être un montant strictement positif.")
@@ -907,13 +920,16 @@ export async function getAdminBusinessDetail(actor: Actor, businessId: number) {
 
 export async function updateAdminBusinessStatus(actor: Actor, businessId: number, status: "active" | "suspended" | "closed") {
   requireRole(actor, "admin")
+  await assertOperatorAccess(db, actor, { walletType: "PROFESSIONAL", holderId: businessId })
   await db.update(businesses).set({ status, updatedAt: new Date() }).where(eq(businesses.id, businessId))
   await logAction(db, actor.id, "admin.business.status_update", "business", businessId, { status })
+  await notifyBusinessLeadership(db, businessId, actor.id, "Statut de l’entreprise mis à jour", status === "active" ? "Votre compte entreprise est actif." : `Votre compte entreprise a été ${status === "suspended" ? "suspendu" : "clôturé"}. Contactez le support client pour plus d’informations.`)
   return getAdminBusinessDetail(actor, businessId)
 }
 
 export async function adminAdjustBusinessBalance(actor: Actor, businessId: number, accountId: number, deltaCents: number, reason: string) {
   requireRole(actor, "admin")
+  await assertOperatorAccess(db, actor, { walletType: "PROFESSIONAL", holderId: businessId })
   const [owned] = await db.select({ id: businessWalletAccounts.id }).from(businessWalletAccounts).where(and(eq(businessWalletAccounts.id, accountId), eq(businessWalletAccounts.businessId, businessId))).limit(1)
   if (!owned) throw new NotFoundError("Compte Wallet Pro introuvable pour cette entreprise.")
   if (reason.trim().length < 8) throw new ValidationError("Une justification d’au moins huit caractères est requise.")
@@ -922,6 +938,7 @@ export async function adminAdjustBusinessBalance(actor: Actor, businessId: numbe
   const transaction = await insertBusinessTransaction(db, { businessId, businessWalletAccountId: accountId, type: "adjustment", direction: deltaCents >= 0 ? "credit" : "debit", amountCents: Math.abs(deltaCents), currency: account?.currency ?? "EUR", description: reason, initiatedByUserId: actor.id })
   await writeBusinessLedger(db, { businessWalletAccountId: accountId, transactionId: transaction.id, deltaCents, balanceAfterCents: balanceAfter })
   await logAction(db, actor.id, "admin.business.balance_adjust", "business_wallet_account", accountId, { deltaCents, reason })
+  await notifyBusinessLeadership(db, businessId, actor.id, "Solde ajusté", `Une correction de solde a été enregistrée sur votre compte : ${reason.trim()}`)
   return getAdminBusinessDetail(actor, businessId)
 }
 
