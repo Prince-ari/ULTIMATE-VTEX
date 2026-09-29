@@ -278,9 +278,26 @@
     }
   }
 
-  function applyProfile(user, account) {
+  var walletDisplayNameOverride = null;
+  window.editDisplayName = async function () {
+    var next = window.prompt("Nom affiché à vos contacts lors d’un virement (laissez vide pour votre nom légal). Votre identité complète reste inchangée et consultable par VTEX :", walletDisplayNameOverride || "");
+    if (next === null) return;
+    try {
+      await rpc("walletSettings.updateMine", { displayName: next.trim() || null });
+      notify("Nom affiché mis à jour.", "ph-check-circle");
+      await hydrateWallet();
+    } catch (error) { notify(error.message, "ph-warning-circle"); }
+  };
+
+  function applyProfile(user, account, displayNameOverride) {
     if (!user) return;
+    walletDisplayNameOverride = displayNameOverride || null;
     var fullName = walletDisplayName(user);
+    var counterpartyName = walletDisplayNameOverride || fullName;
+    var receiveDisplayName = document.getElementById("receive-display-name");
+    if (receiveDisplayName) receiveDisplayName.textContent = counterpartyName;
+    var sendDisplayName = document.getElementById("send-display-name");
+    if (sendDisplayName) sendDisplayName.textContent = counterpartyName;
     var email = user.email || "Adresse non renseignée";
     [".vtx-sb-uname", ".hd-greet-name", ".topbar-greet-name", "#view-profil .settings-profile-card .settings-profile-name", ".rcv-holder-name"].forEach(function (selector) {
       document.querySelectorAll(selector).forEach(function (element) { element.textContent = fullName; });
@@ -937,7 +954,7 @@
       var result = await rpc("wallets.bootstrap");
       applyServerCurrency(result.settings);
       applyWalletData(result.account, result.cards || [], result.transactions || [], result.beneficiaries || [], result.savingsGoals || []);
-      applyProfile(result.user, result.account);
+      applyProfile(result.user, result.account, result.settings && result.settings.displayName);
       var banks = await query("bankAccounts.mine").catch(function () { return []; });
       renderBankAccounts(banks, result.user, result.account);
       var extra = await Promise.all([query("notifications.listMine"), query("settings.get"), query("documents.listMine"), query("auth.listSessions"), query("auth.webauthnListCredentials"), query("support.listMine")]);

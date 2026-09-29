@@ -4623,6 +4623,7 @@
       <div class="qr-caption">Code EPC — compatible avec toutes les applications bancaires européennes</div>
 
       <div class="rcv-details">
+        <div class="bank-row"><span class="rv-row-ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg></span><span class="bank-lbl">Nom affiché au payeur</span><span class="bank-val" id="receive-display-name" style="cursor:pointer" onclick="editDisplayName()">—</span></div>
         <div class="bank-row"><span class="rv-row-ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><rect x="2" y="5" width="20" height="14" rx="3"/><rect x="2" y="9" width="20" height="3" fill="var(--c-s1)"/></svg></span><span class="bank-lbl">IBAN</span><span class="bank-val mono">En cours de provisionnement</span></div>
         <div class="bank-row"><span class="rv-row-ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.1"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5.5A2.5 2.5 0 0 1 3 16.5Z"/><path d="M16 12h3.5"/></svg></span><span class="bank-lbl">BIC / SWIFT</span><span class="bank-val mono">Non provisionné</span></div>
         <div class="bank-row"><span class="rv-row-ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12 2.5 22 8v1.8H2V8Z"/><rect x="4" y="11.5" width="2.6" height="6.5" rx="1"/><rect x="10.7" y="11.5" width="2.6" height="6.5" rx="1"/><rect x="17.4" y="11.5" width="2.6" height="6.5" rx="1"/><rect x="2.5" y="19.5" width="19" height="2" rx="1"/></svg></span><span class="bank-lbl">Banque</span><span class="bank-val">À provisionner</span></div>
@@ -4754,6 +4755,17 @@
           <div id="env-lock-actions" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"></div>
         </div>
       </div>
+    </div>
+
+    <div style="margin:0 2px 20px;padding:14px 16px;border-radius:var(--r-lg);background:var(--c-s1);border:1px solid var(--c-border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div style="min-width:0">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--c-t3);font-weight:700">Nom affiché au destinataire</div>
+          <div id="send-display-name" style="margin-top:2px;font-family:var(--f-sans);font-weight:800;font-size:14.5px;color:var(--c-t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div>
+        </div>
+        <button type="button" onclick="editDisplayName()" style="flex-shrink:0;background:none;border:1px solid var(--c-border-mid);border-radius:999px;padding:7px 14px;color:var(--c-t2);font-size:12px;font-weight:700;cursor:pointer">Modifier</button>
+      </div>
+      <p style="margin:10px 0 0;font-size:11.5px;line-height:1.5;color:var(--c-t3)">Choisissez le nom que vos contacts voient lors d’un virement — votre identité complète reste vérifiée et inchangée pour VTEX.</p>
     </div>
 
     <!-- Grille 2 colonnes asymétrique : navy portrait + lavande hero -->

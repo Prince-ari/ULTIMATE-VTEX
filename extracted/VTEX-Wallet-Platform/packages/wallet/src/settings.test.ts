@@ -17,11 +17,11 @@ async function makeActor(role: Role): Promise<Actor> {
 describe("wallet_settings — devise d'affichage côté serveur", () => {
   it("par défaut aucune préférence ; le titulaire choisit ₣ et la retrouve à l'ouverture du wallet (bootstrap)", async () => {
     const owner = await makeActor("user")
-    expect(await getMyWalletSettings(owner)).toEqual({ displayCurrency: null })
-    expect(await updateMyWalletSettings(owner, { displayCurrency: "XPF" })).toEqual({ displayCurrency: "XPF" })
-    expect(await getMyWalletSettings(owner)).toEqual({ displayCurrency: "XPF" })
+    expect(await getMyWalletSettings(owner)).toEqual({ displayCurrency: null, displayName: null })
+    expect(await updateMyWalletSettings(owner, { displayCurrency: "XPF" })).toEqual({ displayCurrency: "XPF", displayName: null })
+    expect(await getMyWalletSettings(owner)).toEqual({ displayCurrency: "XPF", displayName: null })
     const boot = await bootstrapWallet(owner)
-    expect(boot.settings).toEqual({ displayCurrency: "XPF" })
+    expect(boot.settings).toEqual({ displayCurrency: "XPF", displayName: null })
     // Le compte, lui, reste dans sa devise : la préférence ne change que l'affichage.
     expect(boot.account.currency).toBe("EUR")
     // Un second choix remplace le premier (une seule ligne par titulaire).
@@ -36,14 +36,14 @@ describe("wallet_settings — devise d'affichage côté serveur", () => {
     await expect(updateMyWalletSettings(owner, { displayCurrency: "USD" })).rejects.toThrow(ValidationError)
     await expect(updateMyWalletSettings(owner, { displayCurrency: "GBP" })).rejects.toThrow(ValidationError)
     await expect(updateMyWalletSettings(owner, { displayCurrency: "xpf" })).rejects.toThrow(ValidationError)
-    expect(await getMyWalletSettings(owner)).toEqual({ displayCurrency: null })
+    expect(await getMyWalletSettings(owner)).toEqual({ displayCurrency: null, displayName: null })
   })
 
   it("un administrateur règle la devise d'un titulaire ; le wallet de ce titulaire la relit ; l'action est journalisée", async () => {
     const admin = await makeActor("admin")
     const owner = await makeActor("user")
     await adminUpdateWalletSettings(admin, owner.id, { displayCurrency: "XPF" })
-    expect(await getMyWalletSettings(owner)).toEqual({ displayCurrency: "XPF" })
+    expect(await getMyWalletSettings(owner)).toEqual({ displayCurrency: "XPF", displayName: null })
     const [row] = await db.select().from(walletSettings).where(eq(walletSettings.userId, owner.id))
     expect(row).toMatchObject({ updatedBy: admin.id })
     const entries = await db.select().from(logs).where(and(eq(logs.action, "wallet.settings.admin_update"), eq(logs.holderId, owner.id)))
@@ -59,10 +59,27 @@ describe("wallet_settings — devise d'affichage côté serveur", () => {
     const owner = await makeActor("user")
     await adminUpdateWalletSettings(admin, owner.id, { displayCurrency: "XPF" })
 
-    await expect(adminGetWalletSettings(agent, owner.id)).resolves.toEqual({ displayCurrency: "XPF" })
+    await expect(adminGetWalletSettings(agent, owner.id)).resolves.toEqual({ displayCurrency: "XPF", displayName: null })
     await expect(adminUpdateWalletSettings(agent, owner.id, { displayCurrency: "EUR" })).rejects.toThrow(ForbiddenError)
     await expect(adminGetWalletSettings(manager, owner.id)).rejects.toThrow(ForbiddenError)
     await expect(adminGetWalletSettings(stranger, owner.id)).rejects.toThrow(ForbiddenError)
     await expect(adminUpdateWalletSettings(admin, 2_000_000_000, { displayCurrency: "EUR" })).rejects.toThrow(/introuvable/)
+  })
+})
+
+describe("wallet_settings — nom affiché aux contreparties d'un virement", () => {
+  it("par défaut le nom légal (null) ; le titulaire choisit un nom affiché, le modifie, puis le retire", async () => {
+    const owner = await makeActor("user")
+    expect(await updateMyWalletSettings(owner, { displayName: "Contact VTEX" })).toEqual({ displayCurrency: null, displayName: "Contact VTEX" })
+    expect(await updateMyWalletSettings(owner, { displayName: "  Nouveau nom  " })).toEqual({ displayCurrency: null, displayName: "Nouveau nom" })
+    // Retrait explicite (null) : redevient le nom légal, sans toucher à la devise déjà choisie.
+    await updateMyWalletSettings(owner, { displayCurrency: "XPF" })
+    expect(await updateMyWalletSettings(owner, { displayName: null })).toEqual({ displayCurrency: "XPF", displayName: null })
+  })
+
+  it("refuse un nom affiché trop court ou trop long", async () => {
+    const owner = await makeActor("user")
+    await expect(updateMyWalletSettings(owner, { displayName: "A" })).rejects.toThrow(ValidationError)
+    await expect(updateMyWalletSettings(owner, { displayName: "A".repeat(61) })).rejects.toThrow(ValidationError)
   })
 })

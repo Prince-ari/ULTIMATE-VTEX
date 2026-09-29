@@ -7,23 +7,38 @@ import { walletSettings } from "./db/schema"
 export interface WalletSettingsView {
   /** Devise d'AFFICHAGE choisie (null : aucune préférence, le wallet reste en euros). */
   displayCurrency: Currency | null
+  /** Nom affiché aux CONTREPARTIES d'un virement (émetteur/destinataire) — jamais à VTEX ni à l'administration,
+   * dont l'identité complète (KYC) reste inchangée et journalisée. null : le nom légal du titulaire est affiché. */
+  displayName: string | null
 }
 
 function assertDisplayCurrency(value: string): asserts value is Currency {
   if (!isDisplayCurrency(value)) throw new ValidationError("Cette devise ne peut pas servir d'affichage : seules les devises à parité fixe avec l'euro le peuvent.")
 }
 
-async function read(executor: Db, userId: number): Promise<WalletSettingsView> {
-  const [row] = await executor.select().from(walletSettings).where(eq(walletSettings.userId, userId)).limit(1)
-  const value = row?.displayCurrency ?? null
-  return { displayCurrency: value && isDisplayCurrency(value) ? value : null }
+function assertDisplayName(value: string): void {
+  if (value.length < 2 || value.length > 60) throw new ValidationError("Le nom affiché doit contenir entre deux et soixante caractères.")
 }
 
-async function upsert(executor: Db, userId: number, updatedBy: number, displayCurrency: Currency) {
+async function read(executor: Db, userId: number): Promise<WalletSettingsView> {
+  const [row] = await executor.select().from(walletSettings).where(eq(walletSettings.userId, userId)).limit(1)
+  const displayCurrency = row?.displayCurrency ?? null
+  return {
+    displayCurrency: displayCurrency && isDisplayCurrency(displayCurrency) ? displayCurrency : null,
+    displayName: row?.displayName ?? null,
+  }
+}
+
+async function upsert(executor: Db, userId: number, updatedBy: number, patch: { displayCurrency?: Currency; displayName?: string | null }) {
+  const [existing] = await executor.select().from(walletSettings).where(eq(walletSettings.userId, userId)).limit(1)
+  const next = {
+    displayCurrency: patch.displayCurrency ?? existing?.displayCurrency ?? null,
+    displayName: patch.displayName !== undefined ? patch.displayName : existing?.displayName ?? null,
+  }
   await executor
     .insert(walletSettings)
-    .values({ userId, displayCurrency, updatedBy })
-    .onDuplicateKeyUpdate({ set: { displayCurrency, updatedBy, updatedAt: new Date() } })
+    .values({ userId, updatedBy, ...next })
+    .onDuplicateKeyUpdate({ set: { ...next, updatedBy, updatedAt: new Date() } })
 }
 
 /** Préférences du titulaire connecté. */
@@ -31,11 +46,13 @@ export async function getMyWalletSettings(actor: Actor): Promise<WalletSettingsV
   return read(db, actor.id)
 }
 
-/** Le titulaire choisit sa devise d'affichage : elle est conservée côté serveur et retrouvée sur tout appareil. */
-export async function updateMyWalletSettings(actor: Actor, input: { displayCurrency: string }): Promise<WalletSettingsView> {
-  assertDisplayCurrency(input.displayCurrency)
-  await upsert(db, actor.id, actor.id, input.displayCurrency)
-  await logAction(db, actor.id, "wallet.settings.update", "user", actor.id, { displayCurrency: input.displayCurrency }, { walletType: "PERSONAL", holderId: actor.id })
+/** Le titulaire choisit sa devise d'affichage et/ou le nom affiché à ses contreparties : conservés côté serveur, retrouvés sur tout appareil. */
+export async function updateMyWalletSettings(actor: Actor, input: { displayCurrency?: string; displayName?: string | null }): Promise<WalletSettingsView> {
+  if (input.displayCurrency !== undefined) assertDisplayCurrency(input.displayCurrency)
+  const displayName = input.displayName === undefined ? undefined : input.displayName?.trim() || null
+  if (displayName) assertDisplayName(displayName)
+  await upsert(db, actor.id, actor.id, { displayCurrency: input.displayCurrency as Currency | undefined, displayName })
+  await logAction(db, actor.id, "wallet.settings.update", "user", actor.id, { displayCurrency: input.displayCurrency, displayNameChanged: input.displayName !== undefined }, { walletType: "PERSONAL", holderId: actor.id })
   return read(db, actor.id)
 }
 
@@ -51,7 +68,7 @@ export async function adminUpdateWalletSettings(actor: Actor, userId: number, in
   requirePermission(actor, "wallets.manage")
   assertDisplayCurrency(input.displayCurrency)
   await assertUserExists(userId)
-  await upsert(db, userId, actor.id, input.displayCurrency)
+  await upsert(db, userId, actor.id, { displayCurrency: input.displayCurrency })
   await logAction(db, actor.id, "wallet.settings.admin_update", "user", userId, { displayCurrency: input.displayCurrency }, { walletType: "PERSONAL", holderId: userId })
   return read(db, userId)
 }

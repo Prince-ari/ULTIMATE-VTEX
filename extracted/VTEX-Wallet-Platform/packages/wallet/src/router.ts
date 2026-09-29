@@ -161,7 +161,7 @@ export const walletRouter = router({
   }),
   walletSettings: router({
     mine: protectedProcedure.query(({ ctx }) => getMyWalletSettings(ctx.actor)),
-    updateMine: walletWriteProcedure.input(z.object({ displayCurrency: currency })).mutation(({ ctx, input }) => updateMyWalletSettings(ctx.actor, input)),
+    updateMine: walletWriteProcedure.input(z.object({ displayCurrency: currency.optional(), displayName: z.string().trim().max(60).nullable().optional() })).mutation(({ ctx, input }) => updateMyWalletSettings(ctx.actor, input)),
     adminGet: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ ctx, input }) => adminGetWalletSettings(ctx.actor, input.userId)),
     adminUpdate: walletWriteProcedure.input(z.object({ userId: z.number().int().positive(), displayCurrency: currency })).mutation(({ ctx, input }) => adminUpdateWalletSettings(ctx.actor, input.userId, { displayCurrency: input.displayCurrency })),
   }),

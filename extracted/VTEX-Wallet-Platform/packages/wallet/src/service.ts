@@ -441,8 +441,8 @@ export async function bootstrapWallet(actor: Actor) {
     beneficiaries: beneficiaryRows,
     savingsGoals: savingsGoalRows,
     user: userRows[0] ?? null,
-    /** Préférences serveur du titulaire (devise d'affichage) : le wallet les applique à l'ouverture. */
-    settings: { displayCurrency: settingsRows[0]?.displayCurrency ?? null },
+    /** Préférences serveur du titulaire (devise d'affichage, nom affiché aux contreparties) : le wallet les applique à l'ouverture. */
+    settings: { displayCurrency: settingsRows[0]?.displayCurrency ?? null, displayName: settingsRows[0]?.displayName ?? null },
   }
 }
 

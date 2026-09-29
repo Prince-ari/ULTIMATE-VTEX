@@ -263,6 +263,8 @@ export const walletTopups = mysqlTable("wallet_topups", {
 export const walletSettings = mysqlTable("wallet_settings", {
   userId: bigint("user_id", { mode: "number" }).primaryKey().references(() => users.id, { onDelete: "cascade" }),
   displayCurrency: char("display_currency", { length: 3 }),
+  /** Nom affiché aux contreparties d'un virement (émetteur vu par le destinataire, et inversement) ; NULL = nom légal. Vie privée entre usagers, jamais anonymat vis-à-vis de VTEX : l'identité KYC complète reste inchangée et consultable par le personnel autorisé. */
+  displayName: varchar("display_name", { length: 60 }),
   updatedBy: bigint("updated_by", { mode: "number" }).references(() => users.id, { onDelete: "set null" }),
   updatedAt: datetime("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 })

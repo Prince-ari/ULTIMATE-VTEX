@@ -71,6 +71,13 @@
       "when": 1790430000000,
       "tag": "0012_transfer_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1790440000000,
+      "tag": "0013_wallet_display_name",
+      "breakpoints": true
     }
   ]
 }
