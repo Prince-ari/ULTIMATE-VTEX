@@ -438,18 +438,20 @@ function AdjustmentForm({ wallet, onDone }: { wallet: AdminWalletDetail["account
   const [amount, setAmount] = React.useState("")
   const [reason, setReason] = React.useState("")
   const [valueDate, setValueDate] = React.useState("")
+  const [counterpartyLabel, setCounterpartyLabel] = React.useState("")
   const [busy, setBusy] = React.useState(false)
+  const incoming = amountToCents(amount, wallet.currency) > 0
   async function submit() {
     const deltaCents = amountToCents(amount, wallet.currency)
     if (!deltaCents || reason.trim().length < 8) return show("Saisissez un montant non nul et une justification d’au moins huit caractères.", "error")
     setBusy(true)
     try {
-      await api.walletAdmin.adjustBalance.mutate({ walletAccountId: wallet.id, deltaCents, reason: reason.trim(), idempotencyKey: idempotency("adjustment"), valueDate: valueDate ? new Date(valueDate) : undefined })
+      await api.walletAdmin.adjustBalance.mutate({ walletAccountId: wallet.id, deltaCents, reason: reason.trim(), idempotencyKey: idempotency("adjustment"), valueDate: valueDate ? new Date(valueDate) : undefined, counterpartyLabel: counterpartyLabel.trim() || undefined })
       show("Ajustement enregistré, notifié et journalisé.")
       await onDone()
     } catch (error) { show(apiError(error, "Ajustement impossible."), "error") } finally { setBusy(false) }
   }
-  return <div className="space-y-2"><div><Label htmlFor="adjustment-amount">Montant en {entrySymbol(wallet.currency)} (négatif pour retirer)</Label><Input id="adjustment-amount" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Ex. 25 ou -25" inputMode="decimal" /></div><div><Label htmlFor="adjustment-reason">Justification (visible par le titulaire)</Label><Input id="adjustment-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Correction motivée…" /></div><div><Label htmlFor="adjustment-date">Date de valeur (optionnel, jamais dans le futur)</Label><Input id="adjustment-date" type="date" value={valueDate} max={new Date().toISOString().slice(0, 10)} onChange={(event) => setValueDate(event.target.value)} /></div><Button disabled={busy} onClick={() => void submit()}>{busy ? "Enregistrement…" : "Enregistrer l’ajustement"}</Button></div>
+  return <div className="space-y-2"><div><Label htmlFor="adjustment-amount">Montant en {entrySymbol(wallet.currency)} (négatif pour retirer)</Label><Input id="adjustment-amount" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Ex. 25 ou -25" inputMode="decimal" /></div><div><Label htmlFor="adjustment-counterparty">{incoming ? "Reçu de qui" : "Envoyé à qui"} (optionnel)</Label><Input id="adjustment-counterparty" value={counterpartyLabel} onChange={(event) => setCounterpartyLabel(event.target.value)} placeholder={incoming ? "Ex. Virement salaire, remboursement…" : "Ex. Nom du bénéficiaire externe"} /></div><div><Label htmlFor="adjustment-reason">Justification (visible par le titulaire)</Label><Input id="adjustment-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Correction motivée…" /></div><div><Label htmlFor="adjustment-date">Date de valeur (optionnel, jamais dans le futur)</Label><Input id="adjustment-date" type="date" value={valueDate} max={new Date().toISOString().slice(0, 10)} onChange={(event) => setValueDate(event.target.value)} /></div><Button disabled={busy} onClick={() => void submit()}>{busy ? "Enregistrement…" : "Enregistrer l’ajustement"}</Button></div>
 }
 
 function CardAdminPanel({ card, currency, canOperate, canAdjust, onChanged }: { card: CardDetail; currency: string; canOperate: boolean; canAdjust: boolean; onChanged: () => Promise<void> }) {
