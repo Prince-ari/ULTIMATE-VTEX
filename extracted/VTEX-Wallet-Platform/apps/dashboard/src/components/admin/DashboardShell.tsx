@@ -7,6 +7,7 @@ import * as React from "react"
 import { CurrencyToggle, DisplayCurrencyProvider, useMoney } from "@/lib/displayCurrency"
 
 import { AuthGuard } from "./AuthGuard"
+import { StaffLiveAlerts } from "./StaffLiveAlerts"
 
 const Sidebar = dynamic(
   () => import("@/components/ui/navigation/sidebar").then((module) => module.Sidebar),
@@ -26,6 +27,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
       <DisplayCurrencyProvider>
+        <StaffLiveAlerts />
         <Sidebar />
         <main className="vtex-dashboard-main lg:pl-[292px]">
           <div className="relative">

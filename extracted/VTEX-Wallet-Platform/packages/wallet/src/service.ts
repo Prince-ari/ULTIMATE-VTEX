@@ -1,9 +1,11 @@
 import { createHash, randomBytes, scryptSync } from "node:crypto"
-import { and, asc, desc, eq, gte, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gte, or, sql } from "drizzle-orm"
 import {
   assertOperatorAccess,
   clearCardSecrets,
+  createSystemNotification,
   db,
+  formatMinor,
   generatedIban,
   isAdminRole,
   logAction,
@@ -795,6 +797,14 @@ export async function transferExternal(actor: Actor, input: { walletAccountId: n
     await completeIdempotency(executor, input.idempotencyKey, transaction.id, response)
     await logAction(executor, actor.id, "wallet.transfer.external.request", "transaction", transaction.id, { beneficiaryId: beneficiary.id, amountCents: input.amountCents })
     await insertWalletNotification(executor, actor.id, actor.id, "Virement en attente", `Votre virement vers ${beneficiary.fullName} attend une validation.`)
+    // Un débit externe (prélèvement) ne s'exécute jamais silencieusement : le personnel doit le voir apparaître pour le valider ou le refuser.
+    const staff = await executor.select({ id: users.id }).from(users).where(or(eq(users.role, "admin"), eq(users.role, "agent")))
+    await Promise.all(staff.map((member) => createSystemNotification(executor, {
+      targetUserId: member.id,
+      createdBy: actor.id,
+      title: "Virement externe à valider",
+      body: `Un virement de ${formatMinor(input.amountCents, account.currency)} vers ${beneficiary.fullName} attend une décision.`,
+    })))
     return { ...response, replayed: false }
   })
 }
