@@ -288,8 +288,6 @@
     document.querySelectorAll("#view-profil .settings-profile-card .settings-profile-email").forEach(function (element) { element.textContent = email; });
     document.querySelectorAll(".vtx-sb-usub").forEach(function (element) { element.textContent = "Compte personnel sécurisé"; });
     document.querySelectorAll(".profile-avatar-target, .topbar-avatar, .rcv-av.avatar-self, .transfer-av.avatar-self").forEach(function (element) { applyAvatar(element, fullName, user.avatarUrl); });
-    var avatarInput = document.getElementById("profile-avatar-url");
-    if (avatarInput) avatarInput.value = safeAvatarUrl(user.avatarUrl) || "";
     var memberSince = document.getElementById("profile-member-since");
     if (memberSince) memberSince.textContent = user.createdAt ? new Date(user.createdAt).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }) : "—";
     var accountOpenedSince = document.getElementById("bank-opened-since");
@@ -422,7 +420,7 @@
       container.innerHTML = '<div class="switch-row"><div class="switch-sub">Aucun document pour l’instant. Ceux que l’équipe VTEX vous envoie apparaîtront ici.</div></div>';
       return;
     }
-    var categories = { statement: "Relevé", receipt: "Reçu", contract: "Contrat", identity: "Pièce d’identité", tax: "Fiscal", notice: "Avis", account_document: "Document de compte", transfer_proof: "Justificatif de virement", other: "Autre" };
+    var categories = { statement: "Relevé", receipt: "Reçu", contract: "Contrat", identity: "Pièce d’identité", tax: "Fiscal", notice: "Avis", account_document: "Document de compte", rib: "RIB", transfer_proof: "Justificatif de virement", other: "Autre" };
     var reviews = { pending: { label: "En cours d’examen", color: "#F2B84B" }, validated: { label: "Validé", color: "#97CE5E" }, rejected: { label: "Refusé", color: "#FF6B6B" } };
     var fileSvg = '<svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><path d="M6 2.5h8L19 7.5V20a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 20V4A1.5 1.5 0 0 1 6.5 2.5Z"/><path d="M14 2.5V7a1 1 0 0 0 1 1h4" fill="var(--c-s1)"/></svg>';
     var downloadSvg = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="var(--c-t2)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13M7 11l5 5 5-5"/><path d="M4 21h16"/></svg>';
@@ -960,17 +958,6 @@
       throw error;
     }
   }
-
-  window.saveProfileAvatar = async function () {
-    var input = document.getElementById("profile-avatar-url");
-    var avatarUrl = safeAvatarUrl(input && input.value);
-    if (!avatarUrl) return notify("Utilise une URL HTTPS d’image valide.", "ph-warning-circle");
-    try {
-      await rpc("users.updateMe", { avatarUrl: avatarUrl });
-      await hydrateWallet();
-      notify("Photo de profil synchronisée.", "ph-check-circle");
-    } catch (error) { notify(error.message, "ph-warning-circle"); }
-  };
 
   window.clearProfileAvatar = async function () {
     if (!window.confirm("Retirer votre photo de profil ?")) return;

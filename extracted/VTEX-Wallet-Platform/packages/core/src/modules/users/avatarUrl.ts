@@ -1,14 +1,11 @@
 import { z } from "zod"
 
-/** Une photo externe doit être HTTPS. Une photo importée est servie via le chemin
- * authentifié interne, les octets ne quittent jamais le stockage objet privé. */
-export const avatarUrlSchema = z.string().trim().max(500, "L’URL de la photo est trop longue.").refine((value) => {
-  if (value.startsWith("/api/media/object/media/users/")) return true
-  try {
-    return new URL(value).protocol === "https:"
-  } catch {
-    return false
-  }
-}, "La photo doit utiliser HTTPS ou le chemin média interne sécurisé.")
+/** Photo de profil : uniquement une image réellement importée par le titulaire (chemin média interne authentifié,
+ * les octets ne quittent jamais le stockage objet privé). Aucune URL externe arbitraire n'est acceptée : ni
+ * hotlinking d'image tierce, ni vecteur pour faire charger une ressource externe au nom d'un titulaire. */
+export const avatarUrlSchema = z.string().trim().max(500, "L’URL de la photo est trop longue.").refine(
+  (value) => value.startsWith("/api/media/object/media/users/"),
+  "La photo doit provenir d’un import (chemin média interne) — aucune URL externe n’est acceptée.",
+)
 
 export const avatarUrlPatchSchema = avatarUrlSchema.nullable().optional()

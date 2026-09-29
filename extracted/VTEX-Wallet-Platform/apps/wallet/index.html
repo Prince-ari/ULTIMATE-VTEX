@@ -4274,8 +4274,8 @@
         <label for="profile-avatar-file" class="profile-avatar-filepick"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="4" width="20" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M4 18l5-5 3 3 4-5 4 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="profile-avatar-filename">Choisir une image</span></label>
         <input id="profile-avatar-file" class="profile-avatar-input-hidden" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Importer une photo de profil" onchange="document.getElementById('profile-avatar-filename').textContent=this.files[0]?this.files[0].name:'Choisir une image'">
         <button type="button" class="profile-avatar-save" onclick="uploadProfileAvatar()">Importer</button>
+        <button type="button" class="profile-avatar-clear" onclick="clearProfileAvatar()">Retirer</button>
       </div>
-      <div class="profile-avatar-controls" style="margin-top:8px"><input id="profile-avatar-url" class="profile-avatar-input" type="url" inputmode="url" autocomplete="url" placeholder="https://…/ma-photo.jpg" aria-label="URL HTTPS de la photo de profil"><button type="button" class="profile-avatar-save" onclick="saveProfileAvatar()">URL</button><button type="button" class="profile-avatar-clear" onclick="clearProfileAvatar()">Retirer</button></div>
     </div>
 
     <div class="settings-group-lbl">Mes documents</div>
@@ -6017,63 +6017,9 @@ function openGoalCreator(){
 document.addEventListener("DOMContentLoaded", renderStoredGoals);
 try { renderStoredGoals(); } catch(e){}
 
-// ══════════ Photo de profil — upload local (dataURL + localStorage) ══════════
-const PROFILE_AVATAR_KEY = "vtx.profile.avatar";
-function applyProfileAvatar(dataUrl){
-  document.querySelectorAll(".profile-avatar-target").forEach(el => {
-    if (dataUrl){
-      el.classList.add("has-profile-photo");
-      let img = el.querySelector("img.profile-avatar-image");
-      if (!img){
-        img = document.createElement("img");
-        img.className = "profile-avatar-image";
-        img.alt = "";
-        el.appendChild(img);
-      }
-      img.src = dataUrl;
-    } else {
-      el.classList.remove("has-profile-photo");
-      el.querySelectorAll("img.profile-avatar-image").forEach(i => i.remove());
-    }
-  });
-}
-function _loadStoredAvatar(){
-  try { const s = localStorage.getItem(PROFILE_AVATAR_KEY); if (s) applyProfileAvatar(s); } catch(e){}
-}
-document.addEventListener("DOMContentLoaded", _loadStoredAvatar);
-_loadStoredAvatar();
-
-function uploadProfileAvatar(){
-  const input = document.getElementById("profile-avatar-file");
-  const file = input && input.files && input.files[0];
-  if (!file){ showToast("Sélectionne d'abord une image", "ph-warning-circle"); return; }
-  if (file.size > 4 * 1024 * 1024){ showToast("Image trop grande (max 4 Mo)", "ph-warning-circle"); return; }
-  const reader = new FileReader();
-  reader.onload = () => {
-    const dataUrl = reader.result;
-    try { localStorage.setItem(PROFILE_AVATAR_KEY, dataUrl); } catch(e){ showToast("Stockage local plein", "ph-warning-circle"); return; }
-    applyProfileAvatar(dataUrl);
-    showToast("Photo de profil mise à jour", "ph-check-circle");
-    input.value = "";
-    const nm = document.getElementById("profile-avatar-filename");
-    if (nm) nm.textContent = "Choisir une image";
-  };
-  reader.onerror = () => showToast("Impossible de lire le fichier", "ph-warning-circle");
-  reader.readAsDataURL(file);
-}
-function saveProfileAvatar(){
-  const url = (document.getElementById("profile-avatar-url") || {}).value;
-  if (!url || !/^https:\/\/.+/i.test(url.trim())){ showToast("Saisis une URL HTTPS valide", "ph-warning-circle"); return; }
-  try { localStorage.setItem(PROFILE_AVATAR_KEY, url.trim()); } catch(e){}
-  applyProfileAvatar(url.trim());
-  showToast("Photo de profil mise à jour", "ph-check-circle");
-  document.getElementById("profile-avatar-url").value = "";
-}
-function clearProfileAvatar(){
-  try { localStorage.removeItem(PROFILE_AVATAR_KEY); } catch(e){}
-  applyProfileAvatar(null);
-  showToast("Photo de profil retirée", "ph-check-circle");
-}
+// Photo de profil : upload fichier + suppression, entièrement gérés côté serveur (window.uploadProfileAvatar,
+// window.clearProfileAvatar dans vtex-api.js). L'import par URL a été retiré ; aucun repli local (localStorage) ne
+// doit resservir une image jamais validée par le serveur.
 
 function initCartesScrollHint(){
   const view = document.getElementById("view-cartes");
