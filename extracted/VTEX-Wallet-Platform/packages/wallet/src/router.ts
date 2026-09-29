@@ -3,9 +3,11 @@ import { CURRENCY_CODES } from "@vtex/money"
 import { z } from "zod"
 import {
   adjustWalletBalance,
+  adminSendUnlockCode,
   authorizeCardPayment,
   closeSavingsGoal,
   cancelCard,
+  confirmTransferUnlock,
   createAdminBeneficiary,
   createAdminWallet,
   createBeneficiary,
@@ -16,6 +18,8 @@ import {
   listBankDetailsHistory,
   renewCard,
   replaceCard,
+  requestTransferCode,
+  requestTransferUnlock,
   setCardPin,
   emergencyWalletLockdown,
   createSavingsGoal,
@@ -59,6 +63,11 @@ const walletWriteProcedure = protectedProcedure.use(async ({ ctx, next }) => {
 })
 const walletMoneyProcedure = protectedProcedure.use(async ({ ctx, next }) => {
   await checkRateLimit(db, `wallet:money:${ctx.actor.id}:${ctx.ip}`, 10, 60_000)
+  return next()
+})
+/** Envoi de code (e-mail) : borné plus sévèrement que les autres écritures pour ne jamais servir de canal de spam. */
+const walletCodeProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  await checkRateLimit(db, `wallet:code:${ctx.actor.id}:${ctx.ip}`, 5, 5 * 60_000)
   return next()
 })
 
@@ -107,10 +116,13 @@ export const walletRouter = router({
   }),
   transactions: router({
     listMine: protectedProcedure.input(z.object({ offset: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(100).optional() }).optional()).query(({ ctx, input }) => listMyTransactions(ctx.actor, input ?? {})),
-    transferInternal: walletMoneyProcedure.input(z.object({ fromWalletAccountId: z.number().int().positive(), toWalletAccountId: z.number().int().positive(), amountCents: cents.positive(), description: z.string().max(250).optional(), idempotencyKey })).mutation(({ ctx, input }) => transferInternal(ctx.actor, input)),
-    transferExternal: walletMoneyProcedure.input(z.object({ walletAccountId: z.number().int().positive(), beneficiaryId: z.number().int().positive(), amountCents: cents.positive(), description: z.string().max(250).optional(), idempotencyKey })).mutation(({ ctx, input }) => transferExternal(ctx.actor, input)),
-    shareFunds: walletMoneyProcedure.input(z.object({ fromWalletAccountId: z.number().int().positive(), recipients: z.array(z.object({ walletAccountId: z.number().int().positive(), amountCents: cents.positive() })).min(1).max(20), description: z.string().max(250).optional(), idempotencyKey })).mutation(({ ctx, input }) => shareFunds(ctx.actor, input)),
+    transferInternal: walletMoneyProcedure.input(z.object({ fromWalletAccountId: z.number().int().positive(), toWalletAccountId: z.number().int().positive(), amountCents: cents.positive(), description: z.string().max(250).optional(), idempotencyKey, code: z.string().max(6).optional() })).mutation(({ ctx, input }) => transferInternal(ctx.actor, input)),
+    transferExternal: walletMoneyProcedure.input(z.object({ walletAccountId: z.number().int().positive(), beneficiaryId: z.number().int().positive(), amountCents: cents.positive(), description: z.string().max(250).optional(), idempotencyKey, code: z.string().max(6).optional() })).mutation(({ ctx, input }) => transferExternal(ctx.actor, input)),
+    shareFunds: walletMoneyProcedure.input(z.object({ fromWalletAccountId: z.number().int().positive(), recipients: z.array(z.object({ walletAccountId: z.number().int().positive(), amountCents: cents.positive() })).min(1).max(20), description: z.string().max(250).optional(), idempotencyKey, code: z.string().max(6).optional() })).mutation(({ ctx, input }) => shareFunds(ctx.actor, input)),
     resolvePending: walletMoneyProcedure.input(z.object({ transactionId: z.number().int().positive(), approved: z.boolean(), reason: z.string().max(250).optional() })).mutation(({ ctx, input }) => resolvePendingTransaction(ctx.actor, input.transactionId, input.approved, input.reason)),
+    requestUnlock: walletWriteProcedure.mutation(({ ctx }) => requestTransferUnlock(ctx.actor)),
+    confirmUnlock: walletCodeProcedure.input(z.object({ code: z.string().regex(/^\d{6}$/, "Le code doit contenir six chiffres.") })).mutation(({ ctx, input }) => confirmTransferUnlock(ctx.actor, input.code)),
+    requestCode: walletCodeProcedure.input(z.object({ walletAccountId: z.number().int().positive() })).mutation(({ ctx, input }) => requestTransferCode(ctx.actor, input.walletAccountId)),
   }),
   savingsGoals: router({
     listMine: protectedProcedure.query(({ ctx }) => listSavingsGoals(ctx.actor)),
@@ -140,6 +152,7 @@ export const walletRouter = router({
     createBeneficiary: walletWriteProcedure.input(z.object({ walletAccountId: z.number().int().positive(), fullName: z.string().min(2).max(160), nickname: z.string().max(80).optional(), iban: z.string().min(15).max(64), bic: z.string().max(16).optional(), internalWalletAccountId: z.number().int().positive().nullable().optional() })).mutation(({ ctx, input }) => createAdminBeneficiary(ctx.actor, input)),
     adjustBalance: walletMoneyProcedure.input(z.object({ walletAccountId: z.number().int().positive(), deltaCents: cents.refine((value) => value !== 0), reason: z.string().min(8).max(250), idempotencyKey, valueDate: z.coerce.date().optional() })).mutation(({ ctx, input }) => adjustWalletBalance(ctx.actor, input)),
     emergencyLockdown: walletWriteProcedure.input(z.object({ walletAccountId: z.number().int().positive(), reason: z.string().min(8).max(250), idempotencyKey })).mutation(({ ctx, input }) => emergencyWalletLockdown(ctx.actor, input)),
+    sendUnlockCode: walletCodeProcedure.input(z.object({ walletAccountId: z.number().int().positive() })).mutation(({ ctx, input }) => adminSendUnlockCode(ctx.actor, input.walletAccountId)),
     stripeStatus: protectedProcedure.query(({ ctx }) => stripeStatusForAdmin(ctx.actor)),
     topups: protectedProcedure.input(z.object({ status: z.enum(["pending", "requires_action", "processing", "succeeded", "failed", "canceled", "refunded"]).optional(), limit: z.number().int().min(1).max(500).optional() }).optional()).query(({ ctx, input }) => listAdminWalletTopups(ctx.actor, input)),
     reconcileTopup: walletWriteProcedure.input(z.object({ reference: z.string().min(8).max(64) })).mutation(({ ctx, input }) => reconcileWalletTopup(ctx.actor, input.reference)),

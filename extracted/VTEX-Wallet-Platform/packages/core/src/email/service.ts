@@ -1,5 +1,6 @@
 import { Resend } from "resend"
 import { otpEmailHtml, otpEmailText } from "./otpTemplate"
+import { transferCodeEmailHtml, transferCodeEmailText, type TransferCodePurpose } from "./transferCodeTemplate"
 
 let cachedClient: Resend | null = null
 
@@ -33,5 +34,21 @@ export async function sendOtpEmail(to: string, code: string, firstName: string):
 
   if (error) {
     throw new EmailError(`Envoi de l'email OTP échoué : ${error.message}`)
+  }
+}
+
+/** Envoie le code de déblocage ou de validation de virement par email. Lève EmailError en cas d'échec (même contrat que sendOtpEmail). */
+export async function sendTransferCodeEmail(to: string, code: string, firstName: string, purpose: TransferCodePurpose): Promise<void> {
+  const resend = getClient()
+  const { error } = await resend.emails.send({
+    from: process.env.EMAIL_FROM ?? "VTEX <onboarding@resend.dev>",
+    to,
+    subject: purpose === "unlock" ? "Votre code de déblocage des virements VTEX" : "Votre code de validation de virement VTEX",
+    html: transferCodeEmailHtml(code, firstName, purpose),
+    text: transferCodeEmailText(code, firstName, purpose),
+  })
+
+  if (error) {
+    throw new EmailError(`Envoi de l'email de code de virement échoué : ${error.message}`)
   }
 }

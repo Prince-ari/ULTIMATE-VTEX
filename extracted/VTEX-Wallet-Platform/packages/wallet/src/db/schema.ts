@@ -4,6 +4,7 @@ import {
   char,
   datetime,
   index,
+  int,
   json,
   mysqlEnum,
   mysqlTable,
@@ -27,12 +28,37 @@ export const walletAccounts = mysqlTable("wallet_accounts", {
   availableBalanceCents: bigint("available_balance_cents", { mode: "number" }).notNull().default(0),
   reservedBalanceCents: bigint("reserved_balance_cents", { mode: "number" }).notNull().default(0),
   status: mysqlEnum("status", ["active", "frozen", "closed"]).notNull().default("active"),
+  /** Nouveau compte : envoi verrouillé par défaut (anti-fraude). Débloqué une fois pour toutes via le code de déblocage ; les comptes déjà actifs à l'introduction de cette colonne restent débloqués (migration corrective). */
+  transfersLocked: boolean("transfers_locked").notNull().default(true),
+  /** Horodatage de la demande de déblocage en cours ; NULL si aucune demande n'est en attente. */
+  unlockRequestedAt: datetime("unlock_requested_at"),
   createdAt: datetime("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: datetime("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (t) => ({
   ibanUnique: uniqueIndex("wallet_accounts_iban_unique").on(t.iban),
   userCurrencyUnique: uniqueIndex("wallet_accounts_user_currency_unique").on(t.userId, t.currency),
   statusIdx: index("wallet_accounts_status_idx").on(t.status),
+}))
+
+/**
+ * Code de sécurité à usage unique pour l'envoi de virements : un premier code « unlock » débloque définitivement
+ * un compte neuf (envoyé manuellement par un administrateur) ; un code « transfer » valide CHAQUE virement sortant
+ * (envoyé automatiquement à la demande). Une seule ligne par (compte, motif) — une nouvelle demande remplace l'ancienne.
+ * Même contrat que `otp_codes` (Sprint Auth) : l'empreinte HMAC seule fait foi ; le code en clair n'est écrit hors production.
+ */
+export const transferCodes = mysqlTable("transfer_codes", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  walletAccountId: bigint("wallet_account_id", { mode: "number" }).notNull().references(() => walletAccounts.id, { onDelete: "cascade" }),
+  purpose: mysqlEnum("purpose", ["unlock", "transfer"]).notNull(),
+  code: char("code", { length: 6 }).notNull(),
+  codeHash: varchar("code_hash", { length: 64 }),
+  attempts: int("attempts").notNull().default(0),
+  /** Administrateur à l'origine d'un envoi manuel (déblocage) ; NULL pour un code automatique (validation de virement). */
+  sentBy: bigint("sent_by", { mode: "number" }).references(() => users.id, { onDelete: "set null" }),
+  expiresAt: datetime("expires_at").notNull(),
+  createdAt: datetime("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (t) => ({
+  accountPurposeUnique: uniqueIndex("transfer_codes_account_purpose_unique").on(t.walletAccountId, t.purpose),
 }))
 
 export const walletBankDetails = mysqlTable("wallet_bank_details", {

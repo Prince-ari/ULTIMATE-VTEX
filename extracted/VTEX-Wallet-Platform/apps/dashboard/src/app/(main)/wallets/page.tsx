@@ -237,6 +237,7 @@ function WalletDetailConsole({ detail, canOperate, canAdjust, onChanged }: { det
     <DrawerSection title="Titulaire et compte"><DrawerRow label="Titulaire" value={ownerName || `Utilisateur #${detail.owner.id}`} /><DrawerRow label="Email" value={detail.owner.email} /><DrawerRow label="Rôle Core" value={detail.owner.role} /><DrawerRow label="Devise" value={wallet.currency} /><DrawerRow label="Statut" value={<Badge variant={statusVariant(wallet.status)}>{wallet.status}</Badge>} /><DrawerRow label="Disponible" value={money(wallet.availableBalanceCents, wallet.currency)} /><DrawerRow label="Réservé" value={money(wallet.reservedBalanceCents, wallet.currency)} /><DrawerRow label="IBAN" value={wallet.iban ?? "Révoqué / à provisionner"} /><DrawerRow label="BIC" value={wallet.bic ?? "—"} />{canOperate ? <BankDetailsPanel wallet={wallet} canWrite={canWriteOperate} onChanged={onChanged} /> : null}</DrawerSection>
 
     {canAdjust ? <><DrawerSection title="Permissions Wallet"><WalletPermissionsPanel userId={wallet.userId} canWrite={canWriteAdjust} /></DrawerSection><DrawerSection title="Cycle de vie et devise">{canWriteAdjust ? <AccountStatusControls wallet={wallet} onChanged={onChanged} /> : <p className="text-sm text-gray-500">Ouvrez une session opérateur pour modifier le statut du compte.</p>}{canWriteAdjust ? <NewCurrencyAccountForm userId={wallet.userId} onChanged={onChanged} /> : null}</DrawerSection></> : null}
+    {canAdjust ? <DrawerSection title="Virements sortants">{canWriteAdjust ? <TransferLockPanel wallet={wallet} onChanged={onChanged} /> : <p className="text-sm text-gray-500">Ouvrez une session opérateur pour envoyer un code de déblocage.</p>}</DrawerSection> : null}
     {canAdjust ? <DrawerSection title="Intervention d’urgence">{canWriteAdjust ? <EmergencyLockdown wallet={wallet} onDone={onChanged} /> : <p className="text-sm text-gray-500">Ouvrez une session opérateur pour geler ce compte en urgence.</p>}</DrawerSection> : null}
     {canAdjust ? <DrawerSection title="Ajustement comptable">{canWriteAdjust ? <AdjustmentForm wallet={wallet} onDone={onChanged} /> : <p className="text-sm text-gray-500">Ouvrez une session opérateur pour ajuster ce solde.</p>}</DrawerSection> : null}
     <DrawerSection title={`Cartes (${detail.cards.length})`}><div className="space-y-3">{detail.cards.map((card) => <CardAdminPanel key={card.id} card={card} currency={wallet.currency} canOperate={canWriteOperate} canAdjust={canWriteAdjust} onChanged={onChanged} />)}{canWriteAdjust ? <CreateCardForm walletAccountId={wallet.id} onDone={onChanged} /> : null}</div></DrawerSection>
@@ -325,6 +326,20 @@ function AccountStatusControls({ wallet, onChanged }: { wallet: AdminWalletDetai
   if (busy) return <p className="text-sm text-gray-500">Mise à jour du statut en cours…</p>
   if (wallet.status === "closed") return <p className="text-sm text-gray-500">Ce compte est clôturé de manière définitive. La devise et le ledger restent consultables.</p>
   return <div className="space-y-2"><p className="text-sm text-gray-500">La clôture est autorisée seulement si les deux soldes sont nuls.</p><div className="flex flex-wrap gap-2">{wallet.status !== "active" ? <Button className="h-8 text-xs" onClick={() => setNextStatus("active")}>Activer</Button> : null}{wallet.status !== "frozen" ? <Button variant="secondary" className="h-8 text-xs" onClick={() => setNextStatus("frozen")}>Geler le compte</Button> : null}<Button variant="secondary" className="h-8 text-xs" onClick={() => setNextStatus("closed")}>Clôturer</Button></div><ConfirmDialog open={!!nextStatus} onOpenChange={(open) => !open && setNextStatus(null)} title={nextStatus === "closed" ? "Clôturer ce compte ?" : "Modifier le statut du compte ?"} description={nextStatus === "closed" ? "Cette action est définitive et sera refusée si un solde disponible ou réservé subsiste." : `Le compte passera à l’état ${nextStatus}.`} confirmLabel={nextStatus === "closed" ? "Clôturer" : "Confirmer"} destructive={nextStatus === "closed"} onConfirm={() => void apply()} /></div>
+}
+
+function TransferLockPanel({ wallet, onChanged }: { wallet: AdminWalletDetail["account"]; onChanged: () => Promise<void> }) {
+  const { show } = useToast()
+  const [busy, setBusy] = React.useState(false)
+  async function sendCode() {
+    setBusy(true)
+    try { await api.walletAdmin.sendUnlockCode.mutate({ walletAccountId: wallet.id }); await onChanged(); show("Code de déblocage envoyé par e-mail au titulaire.") } catch (error) { show(apiError(error, "Envoi du code impossible."), "error") } finally { setBusy(false) }
+  }
+  if (!wallet.transfersLocked) return <p className="text-sm text-emerald-700 dark:text-emerald-300">L’envoi de virements est débloqué sur ce compte.</p>
+  return <div className="space-y-2">
+    <p className="text-sm text-gray-500">L’envoi de virements est verrouillé (anti-fraude, comptes neufs). {wallet.unlockRequestedAt ? "Le titulaire a demandé le déblocage — envoyez-lui son premier code." : "Aucune demande de déblocage n’est en cours."}</p>
+    <Button className="h-8 text-xs" disabled={busy} onClick={() => void sendCode()}>{busy ? "Envoi…" : "Envoyer le code de déblocage"}</Button>
+  </div>
 }
 
 function BankDetailsPanel({ wallet, canWrite, onChanged }: { wallet: AdminWalletDetail["account"]; canWrite: boolean; onChanged: () => Promise<void> }) {

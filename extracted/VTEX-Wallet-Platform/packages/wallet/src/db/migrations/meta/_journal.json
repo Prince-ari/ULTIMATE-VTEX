@@ -64,6 +64,13 @@
       "when": 1790420000000,
       "tag": "0011_transaction_value_date",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1790430000000,
+      "tag": "0012_transfer_codes",
+      "breakpoints": true
     }
   ]
 }

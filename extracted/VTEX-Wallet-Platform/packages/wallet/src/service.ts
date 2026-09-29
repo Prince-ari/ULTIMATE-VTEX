@@ -1,4 +1,4 @@
-import { createHash, randomBytes, scryptSync } from "node:crypto"
+import { createHash, createHmac, randomBytes, randomInt, scryptSync, timingSafeEqual } from "node:crypto"
 import { and, asc, desc, eq, gte, or, sql } from "drizzle-orm"
 import {
   assertOperatorAccess,
@@ -13,11 +13,13 @@ import {
   NotFoundError,
   requireRole,
   requireSelfOrRole,
+  sendTransferCodeEmail,
   syncMainBankAccount,
   ValidationError,
   type Actor,
   type Db,
   type MainBankRef,
+  type TransferCodePurpose,
   users,
 } from "@vtex/core"
 import type { Currency } from "@vtex/money"
@@ -27,6 +29,7 @@ import {
   cards,
   savingsGoals,
   transactions,
+  transferCodes,
   walletAccounts,
   walletBankDetails,
   walletIdempotencyKeys,
@@ -123,6 +126,122 @@ async function ownedAccount(executor: Executor, actor: Actor, accountId: number,
 async function requireSelfOrStaffAccess(actor: Actor, ownerId: number): Promise<void> {
   requireSelfOrRole(actor, ownerId, "admin", "agent")
   if (actor.id !== ownerId) await assertOperatorAccess(db, actor, { walletType: "PERSONAL", holderId: ownerId })
+}
+
+/* ────────────────  Codes de virement (déblocage + validation anti-fraude)  ────────────────
+ * Même contrat que le code OTP de connexion (packages/core/src/modules/auth/service.ts) : empreinte HMAC
+ * seule persistée, comparaison à temps constant, essais bornés, une ligne par (compte, motif) remplacée à
+ * chaque nouvelle demande. Ne s'applique qu'au titulaire agissant sur SON PROPRE compte : le personnel qui
+ * agit via une session opérateur (Sprint 8, déjà motivée et journalisée) n'a pas à obtenir le code envoyé
+ * à l'e-mail du titulaire pour le dépanner. */
+
+const TRANSFER_CODE_TTL_MS = 10 * 60 * 1000
+export const TRANSFER_CODE_MAX_ATTEMPTS = 5
+
+function transferCodeHash(walletAccountId: number, purpose: TransferCodePurpose, code: string): string {
+  const secret = process.env.JWT_SECRET
+  if (!secret) throw new Error("JWT_SECRET manquant.")
+  return createHmac("sha256", secret).update(`transfer:${walletAccountId}:${purpose}:${code}`).digest("hex")
+}
+
+/** Génère, stocke et envoie par email un code à six chiffres. `sentBy` : administrateur à l'origine d'un envoi manuel de déblocage, `null` pour un envoi automatique de validation de virement. */
+async function sendTransferCode(executor: Executor, walletAccountId: number, purpose: TransferCodePurpose, sentBy: number | null): Promise<{ expiresInSeconds: number }> {
+  const code = String(randomInt(0, 1_000_000)).padStart(6, "0")
+  const expiresAt = new Date(Date.now() + TRANSFER_CODE_TTL_MS)
+  const plain = process.env.NODE_ENV === "production" ? "------" : code
+  const codeHash = transferCodeHash(walletAccountId, purpose, code)
+
+  await executor.insert(transferCodes).values({ walletAccountId, purpose, code: plain, codeHash, attempts: 0, sentBy, expiresAt })
+    .onDuplicateKeyUpdate({ set: { code: plain, codeHash, attempts: 0, sentBy, expiresAt } })
+
+  if (process.env.RESEND_API_KEY) {
+    const [account] = await executor.select({ userId: walletAccounts.userId }).from(walletAccounts).where(eq(walletAccounts.id, walletAccountId)).limit(1)
+    const [user] = account ? await executor.select({ email: users.email, firstName: users.firstName }).from(users).where(eq(users.id, account.userId)).limit(1) : []
+    if (user) {
+      try {
+        await sendTransferCodeEmail(user.email, code, user.firstName, purpose)
+      } catch (error) {
+        if (process.env.NODE_ENV === "production") throw error
+        console.warn("[wallet] Envoi du code de virement indisponible en développement.", error)
+      }
+    }
+  }
+  return { expiresInSeconds: TRANSFER_CODE_TTL_MS / 1000 }
+}
+
+/** Vérifie et consomme (à usage unique) un code de virement ; lève ValidationError si absent, expiré, épuisé ou incorrect. */
+async function consumeTransferCode(executor: Executor, walletAccountId: number, purpose: TransferCodePurpose, code: string): Promise<void> {
+  const [entry] = await executor.select().from(transferCodes).where(and(eq(transferCodes.walletAccountId, walletAccountId), eq(transferCodes.purpose, purpose))).limit(1)
+  if (!entry || entry.expiresAt.getTime() < Date.now() || !entry.codeHash) throw new ValidationError("Code expiré : demandez-en un nouveau.")
+
+  // Comptage atomique AVANT la comparaison : deux tentatives concurrentes ne peuvent pas dépasser la limite.
+  await executor.update(transferCodes).set({ attempts: sql`${transferCodes.attempts} + 1` }).where(eq(transferCodes.id, entry.id))
+  const [counted] = await executor.select({ attempts: transferCodes.attempts }).from(transferCodes).where(eq(transferCodes.id, entry.id)).limit(1)
+  if (!counted || counted.attempts > TRANSFER_CODE_MAX_ATTEMPTS) {
+    await executor.delete(transferCodes).where(eq(transferCodes.id, entry.id))
+    throw new ValidationError("Trop d'essais : le code a été annulé, demandez-en un nouveau.")
+  }
+
+  const expected = Buffer.from(entry.codeHash, "hex")
+  const candidate = Buffer.from(transferCodeHash(walletAccountId, purpose, code), "hex")
+  if (expected.length !== candidate.length || !timingSafeEqual(expected, candidate)) throw new ValidationError("Code incorrect.")
+
+  await executor.delete(transferCodes).where(eq(transferCodes.id, entry.id))
+}
+
+/** Wallet.requestTransferUnlock — le titulaire d'un compte neuf demande le déblocage de l'envoi de virements. */
+export async function requestTransferUnlock(actor: Actor): Promise<{ requested: true }> {
+  const account = await ensureWalletAccount(actor)
+  if (!account.transfersLocked) throw new ValidationError("L'envoi de virements est déjà débloqué sur ce compte.")
+  await db.update(walletAccounts).set({ unlockRequestedAt: new Date() }).where(eq(walletAccounts.id, account.id))
+  await logAction(db, actor.id, "wallet.transfer_unlock.request", "wallet_account", account.id)
+  const staff = await db.select({ id: users.id }).from(users).where(or(eq(users.role, "admin"), eq(users.role, "agent")))
+  await Promise.all(staff.map((member) => createSystemNotification(db, {
+    targetUserId: member.id,
+    createdBy: actor.id,
+    title: "Demande de déblocage de virements",
+    body: `Un titulaire demande le déblocage de l’envoi de virements sur son compte ${account.currency}.`,
+  })))
+  return { requested: true }
+}
+
+/** walletAdmin.sendUnlockCode — un administrateur envoie manuellement le premier code de déblocage à un compte verrouillé. */
+export async function adminSendUnlockCode(actor: Actor, walletAccountId: number): Promise<{ expiresInSeconds: number }> {
+  requireRole(actor, "admin")
+  const account = await getAccountOrThrow(db, walletAccountId)
+  await assertOperatorAccess(db, actor, { walletType: "PERSONAL", holderId: account.userId })
+  if (!account.transfersLocked) throw new ValidationError("L'envoi de virements est déjà débloqué sur ce compte.")
+  const result = await sendTransferCode(db, account.id, "unlock", actor.id)
+  await logAction(db, actor.id, "wallet.transfer_unlock.code_sent", "wallet_account", account.id, undefined, { walletType: "PERSONAL", holderId: account.userId })
+  await insertWalletNotification(db, account.userId, actor.id, "Code de déblocage envoyé", "Un code de déblocage des virements vous a été envoyé par e-mail.")
+  return result
+}
+
+/** Wallet.confirmTransferUnlock — le titulaire saisit le code reçu pour débloquer définitivement l'envoi de virements. */
+export async function confirmTransferUnlock(actor: Actor, code: string): Promise<{ unlocked: true }> {
+  const account = await ensureWalletAccount(actor)
+  if (!account.transfersLocked) throw new ValidationError("L'envoi de virements est déjà débloqué sur ce compte.")
+  await consumeTransferCode(db, account.id, "unlock", code)
+  await db.update(walletAccounts).set({ transfersLocked: false, unlockRequestedAt: null }).where(eq(walletAccounts.id, account.id))
+  await logAction(db, actor.id, "wallet.transfer_unlock.confirm", "wallet_account", account.id)
+  await insertWalletNotification(db, account.userId, actor.id, "Virements débloqués", "L’envoi de virements est désormais débloqué sur votre compte.")
+  return { unlocked: true }
+}
+
+/** Wallet.requestTransferCode — envoi automatique d'un code de validation avant un virement sortant (auto-service uniquement). */
+export async function requestTransferCode(actor: Actor, walletAccountId: number): Promise<{ expiresInSeconds: number }> {
+  const account = await getAccountOrThrow(db, walletAccountId)
+  requireSelfOrRole(actor, account.userId, "admin")
+  if (account.transfersLocked) throw new ValidationError("L’envoi de virements est verrouillé : demandez d’abord le déblocage.")
+  return sendTransferCode(db, account.id, "transfer", null)
+}
+
+/** Garde anti-fraude appliquée à chaque virement sortant en auto-service (le titulaire agit sur SON PROPRE compte) : verrouillage + code de validation à usage unique. Le personnel qui agit via une session opérateur en est dispensé — son accès est déjà motivé et journalisé (Sprint 8). */
+async function assertTransferAuthorized(executor: Executor, actor: Actor, source: WalletAccount, code: string | undefined): Promise<void> {
+  if (actor.id !== source.userId) return
+  if (source.transfersLocked) throw new ValidationError("L’envoi de virements est verrouillé : demandez d’abord le déblocage.")
+  if (!code || !code.trim()) throw new ValidationError("Code de validation requis pour ce virement.")
+  await consumeTransferCode(executor, source.id, "transfer", code.trim())
 }
 
 export async function hasWalletPermission(actor: Actor, permission: WalletPermissionName, executor: Executor = db) {
@@ -703,7 +822,7 @@ export async function listMyTransactions(actor: Actor, input: { offset?: number;
   return { items: rows.slice(0, limit), nextOffset: rows.length > limit ? offset + limit : null }
 }
 
-export async function transferInternal(actor: Actor, input: { fromWalletAccountId: number; toWalletAccountId: number; amountCents: number; description?: string; idempotencyKey: string }) {
+export async function transferInternal(actor: Actor, input: { fromWalletAccountId: number; toWalletAccountId: number; amountCents: number; description?: string; idempotencyKey: string; code?: string }) {
   assertPositiveCents(input.amountCents, "Montant du virement")
   if (input.fromWalletAccountId === input.toWalletAccountId) throw new ValidationError("Le compte source et le compte destinataire doivent être différents.")
 
@@ -716,6 +835,7 @@ export async function transferInternal(actor: Actor, input: { fromWalletAccountI
     const destination = await getAccountOrThrow(executor, input.toWalletAccountId)
     if (source.status !== "active" || destination.status !== "active") throw new ValidationError("Un compte concerné n’est pas actif.")
     if (source.currency !== destination.currency) throw new ValidationError("Les virements internes exigent la même devise.")
+    await assertTransferAuthorized(executor, actor, source, input.code)
 
     const sourceBalance = await changeAvailable(executor, source.id, -input.amountCents)
     const destinationBalance = await changeAvailable(executor, destination.id, input.amountCents)
@@ -761,7 +881,7 @@ export async function transferInternal(actor: Actor, input: { fromWalletAccountI
   })
 }
 
-export async function transferExternal(actor: Actor, input: { walletAccountId: number; beneficiaryId: number; amountCents: number; description?: string; idempotencyKey: string }) {
+export async function transferExternal(actor: Actor, input: { walletAccountId: number; beneficiaryId: number; amountCents: number; description?: string; idempotencyKey: string; code?: string }) {
   assertPositiveCents(input.amountCents, "Montant du virement")
   return db.transaction(async (tx) => {
     const executor = tx as unknown as Executor
@@ -774,6 +894,7 @@ export async function transferExternal(actor: Actor, input: { walletAccountId: n
     if (!beneficiary) throw new NotFoundError("Bénéficiaire introuvable.")
     requireSelfOrRole(actor, beneficiary.userId, "admin")
     if (beneficiary.status !== "active") throw new ValidationError("Le bénéficiaire est désactivé.")
+    await assertTransferAuthorized(executor, actor, account, input.code)
 
     const availableBalance = await changeAvailable(executor, account.id, -input.amountCents)
     const reservedBalance = await changeReserved(executor, account.id, input.amountCents)
@@ -809,7 +930,7 @@ export async function transferExternal(actor: Actor, input: { walletAccountId: n
   })
 }
 
-export async function shareFunds(actor: Actor, input: { fromWalletAccountId: number; recipients: { walletAccountId: number; amountCents: number }[]; description?: string; idempotencyKey: string }) {
+export async function shareFunds(actor: Actor, input: { fromWalletAccountId: number; recipients: { walletAccountId: number; amountCents: number }[]; description?: string; idempotencyKey: string; code?: string }) {
   if (input.recipients.length === 0 || input.recipients.length > 20) throw new ValidationError("Le partage doit contenir entre un et vingt destinataires.")
   const recipientIds = new Set<number>()
   let totalCents = 0
@@ -832,6 +953,7 @@ export async function shareFunds(actor: Actor, input: { fromWalletAccountId: num
     if (destinations.some((destination) => destination.status !== "active" || destination.currency !== source.currency)) {
       throw new ValidationError("Tous les comptes destinataires doivent être actifs et dans la même devise.")
     }
+    await assertTransferAuthorized(executor, actor, source, input.code)
 
     const sourceBalance = await changeAvailable(executor, source.id, -totalCents)
     const reference = generatedReference("SPL")
