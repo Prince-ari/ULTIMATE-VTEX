@@ -697,6 +697,7 @@
     if (typeof window.renderCardStack === "function") window.renderCardStack();
     if (typeof window.renderCardsScreen === "function" && CARDS.length) window.renderCardsScreen();
     if (typeof window.refreshFinancialDisplays === "function") window.refreshFinancialDisplays();
+    if (typeof window.renderTransferLockBanner === "function") window.renderTransferLockBanner();
     if (window.vtx3d && window.vtx3d.refreshCards) window.vtx3d.refreshCards();
     else if (window.vtexRefreshCardFaces) window.vtexRefreshCardFaces();
   }
@@ -1137,6 +1138,60 @@
     } catch (error) { notify(error.message, "ph-warning-circle"); }
   };
 
+  /* Verrou anti-fraude des virements sortants : compte neuf verrouillé, demande de déblocage, premier code envoyé
+   * par un administrateur, puis un code de validation à usage unique par virement. Voir packages/wallet/src/service.ts. */
+  window.renderTransferLockBanner = function () {
+    var banner = document.getElementById("env-lock-banner");
+    if (!banner) return;
+    if (!walletAccount || !walletAccount.transfersLocked) { banner.style.display = "none"; return; }
+    banner.style.display = "block";
+    var text = document.getElementById("env-lock-text");
+    var actions = document.getElementById("env-lock-actions");
+    var pillStyle = "background:var(--c-gold);color:#100E0D;border:none;border-radius:999px;padding:9px 18px;font-family:var(--f-sans);font-size:12.5px;font-weight:700;cursor:pointer";
+    if (walletAccount.unlockRequestedAt) {
+      if (text) text.textContent = "Demande envoyée. Dès réception du code par e-mail, saisissez-le ci-dessous pour débloquer l’envoi de virements.";
+      if (actions) actions.innerHTML = '<button type="button" style="' + pillStyle + '" onclick="confirmTransferUnlockPrompt()">J’ai mon code</button>';
+    } else {
+      if (text) text.textContent = "Par sécurité, l’envoi de virements est verrouillé sur les nouveaux comptes. Faites une demande de déblocage : notre équipe vous enverra un premier code par e-mail.";
+      if (actions) actions.innerHTML = '<button type="button" style="' + pillStyle + '" onclick="requestTransferUnlockAction()">Demander le déblocage</button>';
+    }
+  };
+
+  window.requestTransferUnlockAction = async function () {
+    try {
+      await rpc("transactions.requestUnlock");
+      notify("Demande envoyée : vous recevrez un code par e-mail.", "ph-check-circle");
+      await hydrateWallet();
+    } catch (error) { notify(error.message, "ph-warning-circle"); }
+  };
+
+  window.confirmTransferUnlockPrompt = async function () {
+    var code = window.prompt("Saisissez le code de déblocage reçu par e-mail (6 chiffres) :");
+    if (!code) return;
+    try {
+      await rpc("transactions.confirmUnlock", { code: code.trim() });
+      notify("Envoi de virements débloqué !", "ph-check-circle");
+      await hydrateWallet();
+    } catch (error) { notify(error.message, "ph-warning-circle"); }
+  };
+
+  /* Demande automatiquement un code de validation puis l'invite à le saisir ; renvoie le code ou null si annulé/impossible. */
+  async function obtainTransferCode() {
+    if (!walletAccount) return null;
+    if (walletAccount.transfersLocked) {
+      notify("Envoi verrouillé : faites d’abord la demande de déblocage depuis Envoyer.", "ph-warning-circle");
+      return null;
+    }
+    try {
+      await rpc("transactions.requestCode", { walletAccountId: walletAccount.id });
+    } catch (error) {
+      notify(error.message, "ph-warning-circle");
+      return null;
+    }
+    var code = window.prompt("Un code de validation vient de vous être envoyé par e-mail. Saisissez-le (6 chiffres) :");
+    return code ? code.trim() : null;
+  }
+
   window.submitClassique = async function () {
     var name = document.getElementById("cl-name").value.trim();
     var iban = document.getElementById("cl-iban").value.trim().replace(/\s/g, "").toUpperCase();
@@ -1152,7 +1207,9 @@
         var created = await rpc("beneficiaries.create", { fullName: name, iban: iban });
         beneficiary = { id: String(created.id), name: created.fullName, iban: created.iban, bank: created.bic || "" };
       }
-      var outcome = await rpc("transactions.transferExternal", { walletAccountId: walletAccount.id, beneficiaryId: Number(beneficiary.id), amountCents: majorToCents(amount), description: "Virement classique immédiat", idempotencyKey: makeIdempotencyKey("classic") });
+      var code = await obtainTransferCode();
+      if (!code) return;
+      var outcome = await rpc("transactions.transferExternal", { walletAccountId: walletAccount.id, beneficiaryId: Number(beneficiary.id), amountCents: majorToCents(amount), description: "Virement classique immédiat", idempotencyKey: makeIdempotencyKey("classic"), code: code });
       await hydrateWallet();
       notify("Ordre " + outcome.reference + " enregistré et en attente de validation.", "ph-clock");
       window.showView("historique");
@@ -1168,11 +1225,14 @@
       var totalCents = majorToCents(document.getElementById("split-amount").value);
       var base = Math.floor(totalCents / people.length);
       var remainder = totalCents - (base * people.length);
+      var splitCode = await obtainTransferCode();
+      if (!splitCode) return;
       var outcome = await rpc("transactions.shareFunds", {
         fromWalletAccountId: walletAccount.id,
         recipients: people.map(function (person, index) { return { walletAccountId: Number(person.internalWalletAccountId), amountCents: base + (index === 0 ? remainder : 0) }; }),
         description: "Partage de fonds VTEX",
         idempotencyKey: makeIdempotencyKey("share"),
+        code: splitCode,
       });
       await hydrateWallet();
       notify("Partage " + outcome.reference + " exécuté.", "ph-check-circle");
@@ -1200,7 +1260,9 @@
         var created = await rpc("beneficiaries.create", { fullName: name, iban: iban });
         beneficiary = { id: String(created.id), name: created.fullName, iban: created.iban, bank: created.bic || "" };
       }
-      var outcome = await rpc("transactions.transferExternal", { walletAccountId: walletAccount.id, beneficiaryId: Number(beneficiary.id), amountCents: majorToCents(amount), description: reference, idempotencyKey: makeIdempotencyKey("quick-send") });
+      var sendCode = await obtainTransferCode();
+      if (!sendCode) return false;
+      var outcome = await rpc("transactions.transferExternal", { walletAccountId: walletAccount.id, beneficiaryId: Number(beneficiary.id), amountCents: majorToCents(amount), description: reference, idempotencyKey: makeIdempotencyKey("quick-send"), code: sendCode });
       await hydrateWallet();
       if (error) error.textContent = "";
       notify("Ordre " + outcome.reference + " enregistré et en attente de validation.", "ph-clock");
